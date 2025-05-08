@@ -229,14 +229,14 @@ const ProductsPage: React.FC = () => {
       ],
       onFilter: (value: string | boolean | number | bigint, record: Product) => record.status === value,
     },
-    {
-      title: 'Ngày tạo',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (date: string) => new Date(date).toLocaleDateString(),
-      sorter: true,
-      sortDirections: ['ascend', 'descend'] as const,
-    },
+    // {
+    //   title: 'Ngày tạo',
+    //   dataIndex: 'created_at',
+    //   key: 'created_at',
+    //   render: (date: string) => new Date(date).toLocaleDateString(),
+    //   sorter: true,
+    //   sortDirections: ['ascend', 'descend'] as const,
+    // },
     {
       title: 'Hành động',
       key: 'action',

@@ -12,9 +12,9 @@ interface ProductAttribute {
   _id: string;
   name: string;
   displayName: string;
-  description: string;
+  description?: string;
   type: 'text' | 'number' | 'boolean' | 'select';
-  options: string[];
+  options?: string[];
   isFilterable: boolean;
   isVariant: boolean;
   isRequired: boolean;
@@ -346,15 +346,23 @@ const ProductAttributesPage: React.FC = () => {
           <Form.Item
             name="name"
             label="Tên Kỹ Thuật"
-            rules={[{ required: true, message: 'Vui lòng nhập tên kỹ thuật' }]}
+            rules={[
+              { required: true, message: 'Vui lòng nhập tên kỹ thuật' },
+              { max: 50, message: 'Tên kỹ thuật không được vượt quá 50 ký tự' },
+              { pattern: /^[a-zA-Z0-9_]+$/, message: 'Tên kỹ thuật chỉ được chứa chữ cái, số và dấu gạch dưới' }
+            ]}
+            tooltip="Tên kỹ thuật là tên duy nhất để tham chiếu thuộc tính trong hệ thống (ví dụ: 'screen_size', 'color', 'weight')"
           >
-            <Input />
+            <Input placeholder="Ví dụ: screen_size, color, weight" />
           </Form.Item>
 
           <Form.Item
             name="displayName"
             label="Tên Hiển Thị"
-            rules={[{ required: true, message: 'Vui lòng nhập tên hiển thị' }]}
+            rules={[
+              { required: true, message: 'Vui lòng nhập tên hiển thị' },
+              { max: 100, message: 'Tên hiển thị không được vượt quá 100 ký tự' }
+            ]}
           >
             <Input />
           </Form.Item>
@@ -362,6 +370,7 @@ const ProductAttributesPage: React.FC = () => {
           <Form.Item
             name="description"
             label="Mô Tả"
+            rules={[{ max: 255, message: 'Mô tả không được vượt quá 255 ký tự' }]}
           >
             <Input.TextArea rows={3} />
           </Form.Item>
@@ -371,20 +380,43 @@ const ProductAttributesPage: React.FC = () => {
             label="Loại"
             rules={[{ required: true, message: 'Vui lòng chọn loại' }]}
           >
-            <Select options={[
-              { value: 'text', label: 'Văn Bản' },
-              { value: 'number', label: 'Số' },
-              { value: 'boolean', label: 'Đúng/Sai' },
-              { value: 'select', label: 'Danh Sách' }
-            ]} />
+            <Select 
+              options={[
+                { value: 'text', label: 'Văn Bản' },
+                { value: 'number', label: 'Số' },
+                { value: 'boolean', label: 'Đúng/Sai' },
+                { value: 'select', label: 'Danh Sách' }
+              ]} 
+              onChange={(value) => {
+                // Reset options when type changes
+                if (value !== 'select') {
+                  form.setFieldsValue({ options: [] });
+                }
+              }}
+            />
           </Form.Item>
 
           <Form.Item
             name="options"
             label="Tùy Chọn"
-            rules={[{ required: true, message: 'Vui lòng nhập các tùy chọn' }]}
+            rules={[
+              { required: false },
+              { type: 'array', message: 'Vui lòng nhập các tùy chọn hợp lệ' }
+            ]}
           >
-            <Input.TextArea rows={3} placeholder="Nhập các tùy chọn, cách nhau bằng dấu phẩy" />
+            <Input.TextArea 
+              rows={3} 
+              placeholder="Nhập các tùy chọn, cách nhau bằng dấu phẩy (chỉ bắt buộc cho loại 'select')"
+              onChange={(e) => {
+                const text = e.target.value;
+                if (!text) {
+                  form.setFieldsValue({ options: [] });
+                  return;
+                }
+                const options = text.split(',').map(option => option.trim());
+                form.setFieldsValue({ options });
+              }}
+            />
           </Form.Item>
 
           <Form.Item

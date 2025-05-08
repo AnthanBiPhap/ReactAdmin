@@ -56,7 +56,7 @@ const items: MenuItem[] = [
   getItem('Payments', 'payments', <DollarOutlined />),
   getItem('Product Attributes', 'product-attributes', <TagOutlined />),
   getItem('Products', 'products', <ShoppingCartOutlined />),
-  getItem('Product Variants', 'product-variants', <SwapOutlined />),
+  // getItem('Product Variants', 'product-variants', <SwapOutlined />),
   getItem('Product Inventories', 'product-inventories', <WarehouseOutlined />),
   getItem('Review', 'reviews', <ShoppingCartOutlined />),
 

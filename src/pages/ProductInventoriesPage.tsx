@@ -122,7 +122,7 @@ const ProductInventoriesPage: React.FC = () => {
       }
 
       setLoading(true);
-      const response = await axios.get('http://localhost:8889/api/v1/product-inventories', {
+      const response = await axios.get('http://localhost:8889/api/v1/productiventories', {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
         params: {
           page: pagination.page,
@@ -131,7 +131,16 @@ const ProductInventoriesPage: React.FC = () => {
         },
       });
 
-      setInventories(response.data.data.inventories);
+      // Transform the data to match our interface
+      const transformedInventories = response.data.data.productIventories.map((inventory: any) => ({
+        ...inventory,
+        product: inventory.product || { _id: '', product_name: '' },
+        variant: inventory.variant || { _id: '', variantName: '' },
+        location: inventory.location || { _id: '', name: '' },
+        status: getStatus(inventory)
+      }));
+
+      setInventories(transformedInventories);
       setPagination(response.data.data.pagination);
     } catch (error: any) {
       handleError(error, 'Lỗi khi lấy danh sách kho');
@@ -192,7 +201,7 @@ const ProductInventoriesPage: React.FC = () => {
           }
 
           setLoading(true);
-          await axios.delete(`http://localhost:8889/api/v1/product-inventories/${inventoryId}`, {
+          await axios.delete(`http://localhost:8889/api/v1/productiventories/${inventoryId}`, {
             headers: { Authorization: `Bearer ${tokens.accessToken}` },
           });
 
@@ -219,13 +228,13 @@ const ProductInventoriesPage: React.FC = () => {
       const values = await form.validateFields();
 
       if (selectedInventory) {
-        await axios.put(`http://localhost:8889/api/v1/product-inventories/${selectedInventory._id}`, values, {
+        await axios.put(`http://localhost:8889/api/v1/productiventories/${selectedInventory._id}`, values, {
           headers: { Authorization: `Bearer ${tokens.accessToken}` },
         });
 
         message.success('Cập nhật mục thành công');
       } else {
-        await axios.post('http://localhost:8889/api/v1/product-inventories', values, {
+        await axios.post('http://localhost:8889/api/v1/productiventories', values, {
           headers: { Authorization: `Bearer ${tokens.accessToken}` },
         });
 
@@ -241,9 +250,10 @@ const ProductInventoriesPage: React.FC = () => {
     }
   };
 
-  const getStatus = (inventory: ProductInventory) => {
+  const getStatus = (inventory: any) => {
+    if (!inventory.quantity) return 'normal';
     if (inventory.quantity <= 0) return 'out_of_stock';
-    if (inventory.quantity <= inventory.lowStockThreshold) return 'low';
+    if (inventory.quantity <= (inventory.lowStockThreshold || 0)) return 'low';
     return 'normal';
   };
 
@@ -407,7 +417,7 @@ const ProductInventoriesPage: React.FC = () => {
           <Form.Item
             name="product"
             label="Sản Phẩm"
-            rules={[{ required: true, message: 'Vui lòng chọn sản phẩm' }]}
+            rules={[{ required: false, message: 'Vui lòng chọn sản phẩm' }]}
           >
             <Select
               showSearch
@@ -483,6 +493,7 @@ const ProductInventoriesPage: React.FC = () => {
           <Form.Item
             name="lastRestocked"
             label="Lần Nhập Hàng Cuối"
+            rules={[{ required: false, message: 'Vui lòng nhập ngày nhập hàng' }]}
           >
             <Input placeholder="Nhập ngày theo định dạng YYYY-MM-DD" />
           </Form.Item>

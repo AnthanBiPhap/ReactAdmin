@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, message, Select, InputNumber } from 'antd';
+import { Table, Button, Space, Modal, Form, message, Select, InputNumber } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -8,15 +8,22 @@ import { useNavigate } from 'react-router-dom';
 interface Cart {
   _id: string;
   items: Array<{
-    productId: string;
+    product: {
+      _id: string;
+      product_name: string;
+      price: number;
+      sale_price: number;
+    };
     quantity: number;
-    name: string;
-    price: number;
+    currentPrice: number;
+    currentSalePrice: number;
+    totalAmount: number;
   }>;
   totalAmount: number;
   user: {
     _id: string;
     userName: string;
+    fullName: string;
   };
   createdAt: string;
   updatedAt: string;
@@ -137,12 +144,13 @@ const CartPage: React.FC = () => {
       user: cart.user._id,
       totalAmount: cart.totalAmount,
     });
-    setSelectedProductKeys(cart.items.map(item => item.productId));
+    setSelectedProductKeys(cart.items.map(item => item.product._id));
     setSelectedProducts(cart.items.map(item => ({
-      key: item.productId,
-      productId: item.productId,
-      name: item.name,
-      price: item.price,
+      key: item.product._id,
+      productId: item.product._id,
+      product_name: item.product.product_name,
+      price: item.product.price,
+      sale_price: item.product.sale_price,
       quantity: item.quantity,
     })));
     setIsModalOpen(true);
@@ -180,16 +188,14 @@ const CartPage: React.FC = () => {
   };
 
   const handleProductSelectChange = (selectedRowKeys: React.Key[], selectedRows: any[]) => {
-    const newSelectedProducts = selectedRows.map(row => {
-      const existed = selectedProducts.find(p => p.productId === row._id);
-      return {
-        key: row._id,
-        productId: row._id,
-        name: row.product_name,
-        price: row.price,
-        quantity: existed ? existed.quantity : 1
-      };
-    });
+    const newSelectedProducts = selectedRows.map(row => ({
+      key: row._id,
+      productId: row._id,
+      product_name: row.product_name,
+      price: row.price,
+      sale_price: row.sale_price,
+      quantity: 1
+    }));
     setSelectedProductKeys(selectedRowKeys as string[]);
     setSelectedProducts(newSelectedProducts);
   };
@@ -228,10 +234,16 @@ const CartPage: React.FC = () => {
       }
 
       const items = selectedProducts.map(p => ({
-        productId: p.productId,
+        product: {
+          _id: p.productId,
+          product_name: p.product_name,
+          price: p.price,
+          sale_price: p.sale_price
+        },
         quantity: p.quantity,
-        name: p.name,
-        price: p.price
+        currentPrice: p.price,
+        currentSalePrice: p.sale_price || p.price,
+        totalAmount: p.price * p.quantity
       }));
 
       const data = {
@@ -282,7 +294,49 @@ const CartPage: React.FC = () => {
       title: 'Sản Phẩm', 
       dataIndex: 'items', 
       key: 'items',
-      render: (items: any) => items.map((item: any) => `${item.name} x ${item.quantity}`).join(', ') 
+      render: (items: any) => {
+        if (!Array.isArray(items)) return null;
+        return items.map((item: any) => {
+          const productName = item.product?.product_name || 'Unknown';
+          const quantity = item.quantity || 0;
+          const price = item.currentPrice || item.price || 0;
+          const salePrice = item.currentSalePrice || item.sale_price || price;
+          
+          return (
+            <div key={item.product?._id}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontWeight: 'bold' }}>{productName}</span>
+                  <span style={{ marginLeft: '8px' }}>x {quantity}</span>
+                </div>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  Giá: {price.toLocaleString()} VND
+                  <br />
+                  Giá KM: {salePrice.toLocaleString()} VND
+                </div>
+              </div>
+            </div>
+          );
+        });
+      }
+    },
+    { 
+      title: 'Giá Gốc', 
+      dataIndex: 'items', 
+      key: 'currentPrice',
+      render: (items: any) => items.map((item: any) => {
+        const price = item.currentPrice || item.price || 0;
+        return `${price.toLocaleString()} VND`;
+      }).join(', ') 
+    },
+    { 
+      title: 'Giá Khuyến Mãi', 
+      dataIndex: 'items', 
+      key: 'currentSalePrice',
+      render: (items: any) => items.map((item: any) => {
+        const salePrice = item.currentSalePrice || item.sale_price || item.price || 0;
+        return `${salePrice.toLocaleString()} VND`;
+      }).join(', ') 
     },
     { title: 'Tổng Tiền', dataIndex: 'totalAmount', key: 'totalAmount' },
     { title: 'Ngày Tạo', dataIndex: 'createdAt', key: 'createdAt' },
@@ -371,14 +425,24 @@ const CartPage: React.FC = () => {
                   key: 'quantity',
                   render: (_, record) => {
                     const selected = selectedProducts.find(p => p.productId === record._id);
-                    return selected ? (
+                    if (!selected) {
+                      return (
+                        <InputNumber
+                          min={1}
+                          value={1}
+                          onChange={val => handleProductQuantityChange(record._id, val || 1)}
+                          style={{ width: 80 }}
+                        />
+                      );
+                    }
+                    return (
                       <InputNumber
                         min={1}
                         value={selected.quantity}
                         onChange={val => handleProductQuantityChange(record._id, val || 1)}
                         style={{ width: 80 }}
                       />
-                    ) : null;
+                    );
                   },
                 },
               ]}
@@ -397,9 +461,9 @@ const CartPage: React.FC = () => {
             name="totalAmount"
             label="Tổng Tiền"
             rules={[{ required: true, message: 'Vui lòng nhập tổng tiền' }]}
+            initialValue={selectedProducts.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
           >
-            <Input
-              type="number"
+            <InputNumber
               min={0}
               addonAfter="VND"
               style={{ width: '100%' }}

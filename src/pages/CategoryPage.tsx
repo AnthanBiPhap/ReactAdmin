@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, message, Upload, Image } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, message, Upload, Image, Switch } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -50,7 +50,7 @@ const CategoryPage: React.FC = () => {
       }
 
       setLoading(true);
-      const response = await axios.get('http://localhost:8889/api/v1/categories', {
+      const response = await axios.get('http://localhost:8889/api/v1/categories/root', {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
         params: { page: pagination.page, limit: pagination.limit },
       });
@@ -89,7 +89,7 @@ const CategoryPage: React.FC = () => {
       slug: category.slug,
       level: category.level,
       imageUrl: category.imageUrl,
-      isActive: category.isActive,
+      isActive: category.isActive ? true : false,
     });
     setIsModalOpen(true);
   };
@@ -307,8 +307,10 @@ const CategoryPage: React.FC = () => {
           <Form.Item
             name="isActive"
             label="Trạng Thái"
+            valuePropName="checked"
+            rules={[{ required: true, message: 'Vui lòng chọn trạng thái' }]}
           >
-            <Input type="checkbox" />
+            <Switch />
           </Form.Item>
         </Form>
       </Modal>

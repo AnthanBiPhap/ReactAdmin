@@ -11,11 +11,10 @@ interface Address {
   type: string;
   fullName: string;
   phoneNumber: string;
-  addressLine1: string;
-  addressLine2: string;
+  street: string;
+  ward: string;
+  district: string;
   city: string;
-  state: string;
-  postalCode: string;
   country: string;
   isDefault: boolean;
   user: {
@@ -252,10 +251,22 @@ const AddressPage: React.FC = () => {
       width: 120,
     },
     {
-      title: 'Address Line 1',
-      dataIndex: 'addressLine1',
-      key: 'addressLine1',
+      title: 'Street',
+      dataIndex: 'street',
+      key: 'street',
       width: 200,
+    },
+    {
+      title: 'Ward',
+      dataIndex: 'ward',
+      key: 'ward',
+      width: 120,
+    },
+    {
+      title: 'District',
+      dataIndex: 'district',
+      key: 'district',
+      width: 120,
     },
     {
       title: 'City',
@@ -436,43 +447,30 @@ const AddressPage: React.FC = () => {
             <Input />
           </Form.Item>
           <Form.Item
-            name="addressLine1"
-            label="Address Line 1"
-            rules={[
-              { required: true, message: 'Vui lòng nhập địa chỉ!' },
-              { max: 255, message: 'Địa chỉ tối đa 255 ký tự!' },
-            ]}
+            name="street"
+            label="Street"
+            rules={[{ required: true, message: 'Vui lòng nhập đường!' }]}
+          >
+            <Input.TextArea rows={2} />
+          </Form.Item>
+          <Form.Item
+            name="ward"
+            label="Ward"
+            rules={[{ required: true, message: 'Vui lòng nhập phường!' }]}
           >
             <Input />
           </Form.Item>
           <Form.Item
-            name="addressLine2"
-            label="Address Line 2"
-            rules={[{ max: 255, message: 'Địa chỉ tối đa 255 ký tự!' }]}
+            name="district"
+            label="District"
+            rules={[{ required: true, message: 'Vui lòng nhập quận!' }]}
           >
             <Input />
           </Form.Item>
           <Form.Item
             name="city"
             label="City"
-            rules={[
-              { required: true, message: 'Vui lòng nhập thành phố!' },
-              { max: 100, message: 'Thành phố tối đa 100 ký tự!' },
-            ]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name="state"
-            label="State"
-            rules={[{ max: 100, message: 'Tiểu bang tối đa 100 ký tự!' }]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name="postalCode"
-            label="Postal Code"
-            rules={[{ max: 20, message: 'Mã bưu điện tối đa 20 ký tự!' }]}
+            rules={[{ required: true, message: 'Vui lòng nhập thành phố!' }]}
           >
             <Input />
           </Form.Item>
