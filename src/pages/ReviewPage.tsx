@@ -39,6 +39,7 @@ const ReviewPage: React.FC = () => {
   const [selectedReview, setSelectedReview] = useState<Review | null>(null);
 
   useEffect(() => {
+    console.log('ReviewPage mounted');
     fetchReviews();
   }, [tokens?.accessToken, pagination.page, pagination.limit]);
 
@@ -49,11 +50,13 @@ const ReviewPage: React.FC = () => {
         navigate('/login');
         return;
       }
+      console.log('Fetching reviews with token:', tokens?.accessToken);
       setLoading(true);
       const response = await axios.get('http://localhost:8889/api/v1/reviews', {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
         params: { page: pagination.page, limit: pagination.limit },
       });
+      console.log('Reviews response:', response.data);
       setReviews(response.data.data.reviews || response.data.data || []);
       setPagination(response.data.data.pagination || pagination);
     } catch (error: any) {

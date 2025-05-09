@@ -16,6 +16,11 @@ import {
   LogoutOutlined,
   SwapOutlined,
   BankOutlined as WarehouseOutlined,
+  StarOutlined,
+  SettingOutlined,
+  CarOutlined,
+  FileTextOutlined,
+  HeartOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { Layout, Menu } from 'antd';
@@ -56,10 +61,15 @@ const items: MenuItem[] = [
   getItem('Payments', 'payments', <DollarOutlined />),
   getItem('Product Attributes', 'product-attributes', <TagOutlined />),
   getItem('Products', 'products', <ShoppingCartOutlined />),
-  // getItem('Product Variants', 'product-variants', <SwapOutlined />),
+  getItem('SEO', 'seo', <StarOutlined />),
+  getItem('Settings', 'settings', <SettingOutlined />),
+  getItem('Shipping', 'shippings', <CarOutlined />),
+  getItem('Tech News', 'tech-news', <FileTextOutlined />),
+  getItem('Vendors', 'vendors', <UserOutlined />),
+  getItem('Wishlists', 'wishlists', <HeartOutlined />),
   getItem('Product Inventories', 'product-inventories', <WarehouseOutlined />),
-  getItem('Review', 'reviews', <ShoppingCartOutlined />),
-
+  getItem('Review', 'reviews', <StarOutlined />),
+  getItem('Product Variants', 'product-variants', <SwapOutlined />),
 ];
 
 const DefaultLayout: React.FC = () => {
@@ -110,7 +120,9 @@ const DefaultLayout: React.FC = () => {
             navigate(`/${key}`);
           }}
           style={{
-            borderRight: 'none'
+            borderRight: 'none',
+            height: '100%',
+            overflowY: 'auto'
           }}
         />
       </Sider>

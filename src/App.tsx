@@ -27,7 +27,12 @@ import ProductsPage from './pages/ProductsPage';
 import ProductVariantsPage from './pages/ProductVariantsPage';
 import ProductInventoriesPage from './pages/ProductInventoriesPage';
 import ReviewPage from './pages/ReviewPage';
-
+import SEOPage from './pages/SEOPage';
+import SettingsPage from './pages/SettingsPage';
+import ShippingPage from './pages/ShippingPage';
+import TechNewPage from './pages/TechNewPage';
+import VendorPage from './pages/VendorPage';
+import WishlistPage from './pages/WishlistPage';
 
 
 // Create a client
@@ -66,6 +71,12 @@ function App() {
             <Route path="product-variants" element={<ProductVariantsPage />} />
             <Route path="product-inventories" element={<ProductInventoriesPage />} />
             <Route path="reviews" element={<ReviewPage />} />
+            <Route path="seo" element={<SEOPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="shippings" element={<ShippingPage />} />
+            <Route path="tech-news" element={<TechNewPage />} />
+            <Route path="vendors" element={<VendorPage />} />
+            <Route path="wishlists" element={<WishlistPage />} />
         </Route>
          {/* Login thi su dung Emptylayout */}
         <Route  path='/login' element={<EmptyLayout />}>
