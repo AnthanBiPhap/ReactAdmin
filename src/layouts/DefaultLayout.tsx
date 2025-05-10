@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+"use client"
+
+import React, { useState } from "react"
+import { Breadcrumb, Layout, Menu, theme, Input, Space, Badge, Tooltip } from "antd"
 import {
-  DesktopOutlined,
   FileOutlined,
   PieChartOutlined,
-  TeamOutlined,
   UserOutlined,
-  AppstoreOutlined,
   ShoppingCartOutlined,
   FolderOutlined,
   TagOutlined,
@@ -13,7 +13,6 @@ import {
   BellOutlined,
   BankOutlined,
   DollarOutlined,
-  LogoutOutlined,
   SwapOutlined,
   BankOutlined as WarehouseOutlined,
   StarOutlined,
@@ -21,184 +20,154 @@ import {
   CarOutlined,
   FileTextOutlined,
   HeartOutlined,
-} from '@ant-design/icons';
-import type { MenuProps } from 'antd';
-import { Layout, Menu } from 'antd';
-import { Outlet, useNavigate } from 'react-router';
-import UserInfo from '../components/UserInfo';
+  SearchOutlined,
+  QuestionCircleOutlined,
+  NotificationOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+} from "@ant-design/icons"
+import { Outlet, useNavigate, useLocation } from "react-router"
+import UserInfo from "../components/UserInfo"
 
-const { Header, Content, Footer, Sider } = Layout;
+const { Header, Content, Footer, Sider } = Layout
 
-type MenuItem = Required<MenuProps>['items'][number];
+// Define custom menu item type
+interface CustomMenuItem {
+  key: React.Key
+  label: React.ReactNode
+  icon?: React.ReactNode
+  children?: CustomMenuItem[]
+}
 
+// Define getItem to return CustomMenuItem
 function getItem(
   label: React.ReactNode,
   key: React.Key,
   icon?: React.ReactNode,
-  children?: MenuItem[],
-): MenuItem {
+  children?: CustomMenuItem[],
+): CustomMenuItem {
   return {
     key,
     icon,
     children,
     label,
-  } as MenuItem;
+  }
 }
 
-const items: MenuItem[] = [
-  getItem('DashBoard', '', <PieChartOutlined />),
-  getItem('User', 'users', <FileOutlined />),
-  getItem('Activity Log', 'activitylogs', <FileOutlined />),
-  getItem('Address', 'addresses', <FileOutlined />),
-  getItem('Brand', 'brands', <FileOutlined />),
-  getItem('Cart', 'carts', <ShoppingCartOutlined />),
-  getItem('Category', 'categories', <FolderOutlined />),
-  getItem('Coupon', 'coupons', <TagOutlined />),
-  getItem('Location', 'locations', <EnvironmentOutlined />),
-  getItem('Notifications', 'notifications', <BellOutlined />),
-  getItem('Orders', 'orders', <ShoppingCartOutlined />),
-  getItem('Payment Methods', 'payment-methods', <BankOutlined />),
-  getItem('Payments', 'payments', <DollarOutlined />),
-  getItem('Product Attributes', 'product-attributes', <TagOutlined />),
-  getItem('Products', 'products', <ShoppingCartOutlined />),
-  getItem('SEO', 'seo', <StarOutlined />),
-  getItem('Settings', 'settings', <SettingOutlined />),
-  getItem('Shipping', 'shippings', <CarOutlined />),
-  getItem('Tech News', 'tech-news', <FileTextOutlined />),
-  getItem('Vendors', 'vendors', <UserOutlined />),
-  getItem('Wishlists', 'wishlists', <HeartOutlined />),
-  getItem('Product Inventories', 'product-inventories', <WarehouseOutlined />),
-  getItem('Review', 'reviews', <StarOutlined />),
-  getItem('Product Variants', 'product-variants', <SwapOutlined />),
-];
+// Menu items
+const items: CustomMenuItem[] = [
+  getItem("Dashboard", "", <PieChartOutlined />),
+  getItem("User", "users", <UserOutlined />),
+  // getItem("Activity Log", "activitylogs", <FileOutlined />),
+  getItem("Address", "addresses", <EnvironmentOutlined />),
+  getItem("Brand", "brands", <StarOutlined />),
+  getItem("Cart", "carts", <ShoppingCartOutlined />),
+  getItem("Category", "categories", <FolderOutlined />),
+  getItem("Coupon", "coupons", <TagOutlined />),
+  getItem("Location", "locations", <EnvironmentOutlined />),
+  getItem("Notifications", "notifications", <BellOutlined />),
+  getItem("Orders", "orders", <ShoppingCartOutlined />),
+  getItem("Payment Methods", "payment-methods", <BankOutlined />),
+  getItem("Payments", "payments", <DollarOutlined />),
+  getItem("Product Attributes", "product-attributes", <TagOutlined />),
+  getItem("Products", "products", <ShoppingCartOutlined />),
+  getItem("SEO", "seo", <StarOutlined />),
+  getItem("Settings", "settings", <SettingOutlined />),
+  getItem("Shipping", "shippings", <CarOutlined />),
+  getItem("Tech News", "tech-news", <FileTextOutlined />),
+  getItem("Vendors", "vendors", <UserOutlined />),
+  getItem("Wishlists", "wishlists", <HeartOutlined />),
+  getItem("Product Inventories", "product-inventories", <WarehouseOutlined />),
+  getItem("Review", "reviews", <StarOutlined />),
+  getItem("Product Variants", "product-variants", <SwapOutlined />),
+]
+
+// Helper function to get breadcrumb items based on current path
+const getBreadcrumbItems = (pathname: string) => {
+  if (pathname === "/") return [{ title: "Dashboard" }]
+
+  const paths = pathname.split("/").filter(Boolean)
+  return [
+    { title: "Dashboard", href: "/" },
+    ...paths.map((path, index) => {
+      const url = `/${paths.slice(0, index + 1).join("/")}`
+      const title = path.charAt(0).toUpperCase() + path.slice(1).replace(/-/g, " ")
+      return { title, href: url }
+    }),
+  ]
+}
 
 const DefaultLayout: React.FC = () => {
-  const [collapsed, setCollapsed] = useState(false);
-  const navigate = useNavigate(); // Hook để điều hướng
+  const [collapsed, setCollapsed] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const {
+    token: { colorBgContainer, borderRadiusLG },
+  } = theme.useToken()
 
+  // Get the current selected key based on the URL path
+  const selectedKey = location.pathname.split("/")[1] || ""
 
   return (
-    <Layout style={{ 
-      minHeight: '100vh', 
-      background: '#f0f2f5'
-    }}>
-      <Sider 
-        collapsible 
-        collapsed={collapsed} 
+    <Layout className="min-h-screen">
+      <Sider
+        collapsible
+        collapsed={collapsed}
         onCollapse={(value) => setCollapsed(value)}
-        style={{
-          height: '100vh',
-          overflow: 'auto',
-          position: 'fixed',
-          left: 0,
-          top: 0,
-          bottom: 0,
-          zIndex: 100,
-          background: '#001529'
-        }}
+        className="min-h-screen"
+        theme="dark"
       >
-        <div className="demo-logo-vertical" style={{ 
-          height: 64, 
-          padding: '16px 24px', 
-          background: '#001529',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          <span style={{ 
-            fontSize: '20px',
-            fontWeight: 'bold',
-            color: '#fff'
-          }}>Admin</span>
+        <div className="h-16 flex items-center justify-center">
+          <h1 className="text-white text-xl font-bold m-0 p-4 truncate">{collapsed ? "Admin" : "Admin Dashboard"}</h1>
         </div>
         <Menu
           theme="dark"
-          defaultSelectedKeys={['1']}
           mode="inline"
+          defaultSelectedKeys={[selectedKey]}
           items={items}
-          onClick={({ key }) => {
-            navigate(`/${key}`);
-          }}
-          style={{
-            borderRight: 'none',
-            height: '100%',
-            overflowY: 'auto'
-          }}
+          onClick={({ key }) => navigate(`/${key}`)}
         />
       </Sider>
-      <Layout style={{ 
-        marginLeft: collapsed ? 80 : 200, 
-        transition: 'margin-left 0.3s',
-        background: '#fff'
-      }}>
-        <Header style={{ 
-          padding: 0, 
-          background: '#fff',
-          boxShadow: '0 1px 4px rgba(0,21,41,.08)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          height: 64,
-          zIndex: 100
-        }}>
-          <div style={{ 
-            padding: '0 16px', 
-            display: 'flex', 
-            alignItems: 'center',
-            gap: 16
-          }}>
-            <span style={{ 
-              fontSize: '18px',
-              fontWeight: 'bold',
-              color: '#1890ff'
-            }}>Admin Dashboard</span>
+      <Layout>
+        <Header className="flex items-center justify-between p-0 px-4 bg-white shadow-sm">
+          <div className="flex items-center">
+            {React.createElement(collapsed ? MenuUnfoldOutlined : MenuFoldOutlined, {
+              className: "text-lg cursor-pointer mr-4",
+              onClick: () => setCollapsed(!collapsed),
+            })}
+            <Input prefix={<SearchOutlined />} placeholder="Search..." className="w-64 rounded-md" />
           </div>
-          <div style={{ 
-            padding: '0 20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 16
-          }}>
+          <Space>
+            <Tooltip title="Help">
+              <QuestionCircleOutlined className="text-gray-600 text-base cursor-pointer" />
+            </Tooltip>
+            <Tooltip title="Notifications">
+              <Badge count={5} size="small">
+                <NotificationOutlined className="text-gray-600 text-base cursor-pointer" />
+              </Badge>
+            </Tooltip>
             <UserInfo />
-          </div>
+          </Space>
         </Header>
-        <Content style={{ 
-          margin: '24px 16px',
-          padding: 24,
-          background: '#fff',
-          minHeight: 'calc(100vh - 128px)',
-          overflow: 'auto',
-          borderRadius: '8px'
-        }}>
-          <div style={{
-            background: '#fff',
-            borderRadius: '8px',
-            padding: '24px',
-            boxShadow: '0 2px 8px rgba(0,0,0,.08)',
-            height: '100%'
-          }}>
-            <Outlet />
+        <Content className="p-0">
+          <div className="container mx-auto px-4 mt-8">
+            <Breadcrumb items={getBreadcrumbItems(location.pathname)} className="mb-6" />
+            <div
+              className="bg-white rounded-lg shadow-sm p-6 mt-6"
+              style={{
+                background: colorBgContainer,
+              }}
+            >
+              <Outlet />
+            </div>
           </div>
         </Content>
-        <Footer style={{ 
-          textAlign: 'center',
-          padding: '16px',
-          background: '#fff',
-          borderTop: '1px solid #f0f0f0'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8
-          }}>
-            <span style={{ color: '#666' }}>Ant Design ©{new Date().getFullYear()}</span>
-            <span style={{ color: '#666' }}>Created by Ant UED</span>
-          </div>
+        <Footer className="text-center bg-white border-t border-gray-200 p-3">
+          Ant Design ©{new Date().getFullYear()} Created by Ant UED
         </Footer>
       </Layout>
     </Layout>
-  );
-};
+  )
+}
 
-export default DefaultLayout;
+export default DefaultLayout
