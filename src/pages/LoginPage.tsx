@@ -81,7 +81,7 @@ const LoginPage: React.FC = () => {
       name="login"
       initialValues={{ 
         remember: true,
-        email: 'datnguyenhothe@gmail.com',
+        email: 'miko0@gmail.com',
         password: '123456'
        }}
       style={{ maxWidth: 360 }}

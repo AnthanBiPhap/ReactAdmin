@@ -150,6 +150,30 @@ const CartPage: React.FC = () => {
   }
 
   const handleEditCart = (cart: Cart) => {
+  console.log('Editing cart:', cart)
+  if (!cart.user || !cart.user._id) {
+    message.error('Không thể chỉnh sửa giỏ hàng: Thông tin người dùng không hợp lệ')
+    return
+  }
+
+  if (!cart.items || cart.items.length === 0) {
+    message.error('Không thể chỉnh sửa giỏ hàng: Không có sản phẩm')
+    return
+  }
+
+  // Check if all required product information exists
+  const hasInvalidItems = cart.items.some(item => {
+    const hasInvalidProduct = !item.product || !item.product._id || !item.product.product_name || !item.product.price
+    if (hasInvalidProduct) {
+      message.error('Không thể chỉnh sửa giỏ hàng: Thông tin sản phẩm không hợp lệ')
+      return true
+    }
+    return false
+  })
+
+  if (hasInvalidItems) {
+    return
+  }
     setSelectedCart(cart)
     form.setFieldsValue({
       user: cart.user._id,

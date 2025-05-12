@@ -1,299 +1,402 @@
-import {
-  Table,
-  Space,
-  Input,
-  Button,
-  Modal,
-  Form,
-  message,
-  Select,
-  Tag,
-  DatePicker,
-  Upload,
-  InputNumber,
-} from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, InboxOutlined } from '@ant-design/icons';
-import axios from 'axios';
-import { useState, useEffect } from 'react';
+"use client"
+
+import type React from "react"
+import { Table, Space, Input, Button, Modal, Form, message, Tag, DatePicker, Upload, Typography } from "antd"
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from "@ant-design/icons"
+import axios from "axios"
+import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
+import { useAuthStore } from "../stores/useAuthStore"
+
+const { Title } = Typography
+const { TextArea } = Input
+const { Dragger } = Upload
 
 interface TechNew {
-  _id: string;
-  title: string;
-  keyword: string;
-  thumbnail?: string;
-  description: string;
-  content: string;
-  date: Date;
-  createdAt: string;
-  updatedAt: string;
+  _id: string
+  title: string
+  keyword: string
+  thumbnail?: string
+  description: string
+  content: string
+  date: Date
+  createdAt: string
+  updatedAt: string
 }
 
 interface TechNewFormValues {
-  title: string;
-  keyword: string;
-  thumbnail?: string;
-  description: string;
-  content: string;
-  date: Date;
+  title: string
+  keyword: string
+  thumbnail?: string
+  description: string
+  content: string
+  date: Date
 }
 
 const TechNewPage: React.FC = () => {
-  const [techNews, setTechNews] = useState<TechNew[]>([]);
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate()
+  const { tokens } = useAuthStore()
+  const [techNews, setTechNews] = useState<TechNew[]>([])
+  const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 10,
     total: 0,
-  });
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedTechNew, setSelectedTechNew] = useState<TechNew | null>(null);
-  const [form] = Form.useForm();
+  })
+  const [searchTerm, setSearchTerm] = useState("")
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedTechNew, setSelectedTechNew] = useState<TechNew | null>(null)
+  const [form] = Form.useForm()
 
   useEffect(() => {
-    fetchTechNews();
-  }, [pagination.current, pagination.pageSize]);
+    fetchTechNews()
+  }, [pagination.current, pagination.pageSize])
 
-  const fetchTechNews = async () => {
+  const fetchTechNews = async (search = "") => {
     try {
-      setLoading(true);
-      const response = await axios.get('http://localhost:8889/api/v1/techNews', {
+      if (!tokens?.accessToken) {
+        message.error("Vui lòng đăng nhập để tiếp tục")
+        navigate("/login")
+        return
+      }
+
+      setLoading(true)
+      const response = await axios.get("http://localhost:8889/api/v1/techNews", {
+        headers: { Authorization: `Bearer ${tokens.accessToken}` },
         params: {
           page: pagination.current,
           limit: pagination.pageSize,
+          ...(search ? { title: search } : {}),
         },
-      });
-      setTechNews(response.data.data.techNews || []);
+      })
+      setTechNews(response.data.data.techNews || [])
       setPagination({
         ...pagination,
         total: response.data.data.pagination?.total || 0,
-      });
-    } catch (error) {
-      message.error('Lỗi khi lấy danh sách tin tức công nghệ');
+      })
+    } catch (error: any) {
+      handleError(error, "Lỗi khi lấy danh sách tin tức công nghệ")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
+
+  const handleError = (error: any, defaultMessage: string) => {
+    if (error.response?.status === 401) {
+      message.error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại")
+      navigate("/login")
+    } else if (error.response?.data?.message) {
+      message.error(error.response.data.message)
+    } else {
+      message.error(defaultMessage)
+    }
+  }
+
+  const handleSearch = () => {
+    setPagination({ ...pagination, current: 1 })
+    fetchTechNews(searchTerm)
+  }
 
   const handleAddTechNew = () => {
-    setSelectedTechNew(null);
-    form.resetFields();
-    setIsModalOpen(true);
-  };
+    setSelectedTechNew(null)
+    form.resetFields()
+    setIsModalOpen(true)
+  }
 
   const handleEditTechNew = (techNew: TechNew) => {
-    setSelectedTechNew(techNew);
+    setSelectedTechNew(techNew)
     form.setFieldsValue({
       title: techNew.title,
       keyword: techNew.keyword,
       thumbnail: techNew.thumbnail,
       description: techNew.description,
       content: techNew.content,
-      date: techNew.date,
-    });
-    setIsModalOpen(true);
-  };
+      date: techNew.date ? new Date(techNew.date) : undefined,
+    })
+    setIsModalOpen(true)
+  }
 
   const handleDeleteTechNew = async (techNewId: string) => {
     try {
-      await Modal.confirm({
-        title: 'Xác nhận xóa',
-        content: 'Bạn có chắc chắn muốn xóa tin tức này?',
-        okText: 'Xóa',
-        okType: 'danger',
-        cancelText: 'Hủy',
-      });
+      if (!tokens?.accessToken) {
+        message.error("Vui lòng đăng nhập để tiếp tục")
+        navigate("/login")
+        return
+      }
 
-      await axios.delete(`http://localhost:8889/api/v1/techNews/${techNewId}`);
-      message.success('Xóa tin tức thành công');
-      fetchTechNews();
-    } catch (error) {
-      message.error('Lỗi khi xóa tin tức');
+      await Modal.confirm({
+        title: "Xác nhận xóa",
+        content: "Bạn có chắc chắn muốn xóa tin tức này?",
+        okText: "Xóa",
+        okType: "danger",
+        cancelText: "Hủy",
+      })
+
+      setLoading(true)
+      await axios.delete(`http://localhost:8889/api/v1/techNews/${techNewId}`, {
+        headers: { Authorization: `Bearer ${tokens.accessToken}` },
+      })
+
+      message.success("Xóa tin tức thành công")
+      fetchTechNews(searchTerm)
+    } catch (error: any) {
+      handleError(error, "Lỗi khi xóa tin tức")
+    } finally {
+      setLoading(false)
     }
-  };
+  }
 
   const handleModalOk = async () => {
     try {
-      const values = await form.validateFields();
-      
-      if (selectedTechNew) {
-        await axios.put(`http://localhost:8889/api/v1/techNews/${selectedTechNew._id}`, values);
-        message.success('Cập nhật tin tức thành công');
-      } else {
-        await axios.post('http://localhost:8889/api/v1/techNews', values);
-        message.success('Tạo mới tin tức thành công');
+      if (!tokens?.accessToken) {
+        message.error("Vui lòng đăng nhập để tiếp tục")
+        navigate("/login")
+        return
       }
 
-      setIsModalOpen(false);
-      fetchTechNews();
-    } catch (error) {
-      message.error('Lỗi khi xử lý tin tức');
+      const values = await form.validateFields()
+
+      setLoading(true)
+      if (selectedTechNew) {
+        await axios.put(`http://localhost:8889/api/v1/techNews/${selectedTechNew._id}`, values, {
+          headers: { Authorization: `Bearer ${tokens.accessToken}` },
+        })
+        message.success("Cập nhật tin tức thành công")
+      } else {
+        await axios.post("http://localhost:8889/api/v1/techNews", values, {
+          headers: { Authorization: `Bearer ${tokens.accessToken}` },
+        })
+        message.success("Tạo mới tin tức thành công")
+      }
+
+      setIsModalOpen(false)
+      fetchTechNews(searchTerm)
+    } catch (error: any) {
+      handleError(error, "Lỗi khi xử lý tin tức")
+    } finally {
+      setLoading(false)
     }
-  };
+  }
+
+  const handleTableChange = (newPagination: any) => {
+    setPagination({
+      ...pagination,
+      current: newPagination.current || pagination.current,
+      pageSize: newPagination.pageSize || pagination.pageSize,
+    })
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleString()
+  }
 
   const columns = [
     {
-      title: 'Title',
-      dataIndex: 'title',
-      key: 'title',
-      render: (text: string) => (
-        <div style={{ fontWeight: 600 }}>
-          {text}
-        </div>
+      title: "Title",
+      dataIndex: "title",
+      key: "title",
+      width: 200,
+      render: (text: string) => <div className="font-semibold">{text}</div>,
+      sorter: (a: TechNew, b: TechNew) => a.title.localeCompare(b.title),
+    },
+    {
+      title: "Keyword",
+      dataIndex: "keyword",
+      key: "keyword",
+      width: 200,
+      render: (keyword: string) => (
+        <Tag color="blue" className="px-2 py-1">
+          {keyword}
+        </Tag>
       ),
     },
     {
-      title: 'Keyword',
-      dataIndex: 'keyword',
-      key: 'keyword',
+      title: "Thumbnail",
+      dataIndex: "thumbnail",
+      key: "thumbnail",
+      render: (thumbnail: string) =>
+        thumbnail ? (
+          <img
+            src={thumbnail || "/placeholder.svg"}
+            alt="Thumbnail"
+            className="w-12 h-12 object-cover rounded-md border border-gray-200"
+            onError={(e) => {
+              const img = e.target as HTMLImageElement
+              img.src =
+                "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjUwIiBoZWlnaHQ9IjUwIiBmaWxsPSJncmF5Ii8+PHRleHQgeD0iMjUiIHk9IjI1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM2NjY2NjYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPjwvdGV4dD48L3N2Zz4="
+            }}
+          />
+        ) : (
+          <div className="w-12 h-12 bg-gray-100 flex items-center justify-center rounded-md">
+            <span className="text-gray-500 text-xs">No Image</span>
+          </div>
+        ),
     },
     {
-      title: 'Thumbnail',
-      dataIndex: 'thumbnail',
-      key: 'thumbnail',
-      render: (thumbnail: string) => thumbnail ? (
-        <img 
-          src={thumbnail} 
-          alt="Thumbnail" 
-          style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 4 }}
-          onError={(e) => {
-            const img = e.target as HTMLImageElement;
-            img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjUwIiBoZWlnaHQ9IjUwIiBmaWxsPSJncmF5Ii8+PHRleHQgeD0iMjUiIHk9IjI1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM2NjY2NjYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPjwvdGV4dD48L3N2Zz4=';
-          }}
-        />
-      ) : (
-        <div style={{ 
-          width: 50, 
-          height: 50,
-          background: '#f0f0f0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: 4
-        }}>
-          <span style={{ color: '#666' }}>No Image</span>
-        </div>
-      ),
-    },
-    {
-      title: 'Description',
-      dataIndex: 'description',
-      key: 'description',
+      title: "Description",
+      dataIndex: "description",
+      key: "description",
       ellipsis: true,
+      width: 300,
     },
     {
-      title: 'Date',
-      dataIndex: 'date',
-      key: 'date',
-      render: (date: Date) => new Date(date).toLocaleString(),
+      title: "Date",
+      dataIndex: "date",
+      key: "date",
+      render: (date: Date) => (date ? formatDate(date.toString()) : "-"),
+      sorter: (a: TechNew, b: TechNew) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     },
     {
-      title: 'Created At',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date: string) => new Date(date).toLocaleString(),
+      title: "Created At",
+      dataIndex: "createdAt",
+      key: "createdAt",
+      render: (date: string) => formatDate(date),
     },
     {
-      title: 'Action',
-      key: 'action',
+      title: "Action",
+      key: "action",
       render: (_: any, record: TechNew) => (
         <Space size="middle">
-          <Button type="primary" icon={<EditOutlined />} onClick={() => handleEditTechNew(record)}>
+          <Button
+            type="text"
+            icon={<EditOutlined />}
+            onClick={() => handleEditTechNew(record)}
+            className="text-blue-500 hover:text-blue-700"
+          >
             Edit
           </Button>
-          <Button danger icon={<DeleteOutlined />} onClick={() => handleDeleteTechNew(record._id)}>
+          <Button
+            type="text"
+            icon={<DeleteOutlined />}
+            onClick={() => handleDeleteTechNew(record._id)}
+            className="text-red-500 hover:text-red-700"
+          >
             Delete
           </Button>
         </Space>
       ),
     },
-  ];
+  ]
 
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Tech News Management</h1>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddTechNew}>
-          Add Tech News
-        </Button>
+    <div className="p-4 max-w-7xl mx-auto">
+      <div className="flex justify-between items-center flex-wrap gap-4 mb-6">
+        <Title level={3} className="m-0">
+          Tech News Management
+        </Title>
+        <Space>
+          <Input
+            placeholder="Search by title"
+            allowClear
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onPressEnter={handleSearch}
+            className="w-80 rounded-md"
+            prefix={<SearchOutlined />}
+          />
+          <Button
+            type="primary"
+            icon={<SearchOutlined />}
+            onClick={handleSearch}
+            className="rounded-md bg-blue-500 hover:bg-blue-600"
+          >
+            Search
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleAddTechNew}
+            className="rounded-md bg-blue-500 hover:bg-blue-600"
+          >
+            Add Tech News
+          </Button>
+        </Space>
       </div>
-      <Table
-        columns={columns}
-        dataSource={techNews}
-        loading={loading}
-        pagination={pagination}
-        rowKey="_id"
-        onChange={(newPagination) => {
-          setPagination({
-            ...pagination,
-            current: newPagination.current || pagination.current,
-            pageSize: newPagination.pageSize || pagination.pageSize,
-          });
-        }}
-      />
+
+      <div className="overflow-x-auto">
+        <Table
+          columns={columns}
+          dataSource={techNews}
+          loading={loading}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showSizeChanger: true,
+            pageSizeOptions: ["10", "20", "50"],
+            showTotal: (total) => <span className="ml-0">Total {total} tech news</span>,
+            className: "ant-table-pagination",
+          }}
+          onChange={handleTableChange}
+          rowKey="_id"
+          bordered
+          className="bg-white rounded-md shadow-sm"
+          rowClassName="hover:bg-gray-50 transition-colors"
+          scroll={{ x: "max-content" }}
+        />
+      </div>
+
       <Modal
-        title={selectedTechNew ? 'Edit Tech News' : 'Add Tech News'}
+        title={selectedTechNew ? "Edit Tech News" : "Add Tech News"}
         open={isModalOpen}
         onOk={handleModalOk}
         onCancel={() => setIsModalOpen(false)}
+        okButtonProps={{ className: "rounded-md bg-blue-500 hover:bg-blue-600" }}
+        cancelButtonProps={{ className: "rounded-md" }}
         width={800}
+        className="p-4"
       >
-        <Form
-          form={form}
-          layout="vertical"
-        >
+        <Form form={form} layout="vertical" className="mt-4">
           <Form.Item
             name="title"
             label="Title"
             rules={[
-              { required: true, message: 'Please enter title!' },
-              { min: 2, message: 'Title must be at least 2 characters!' },
-              { max: 150, message: 'Title cannot exceed 150 characters!' }
+              { required: true, message: "Please enter title!" },
+              { min: 2, message: "Title must be at least 2 characters!" },
+              { max: 150, message: "Title cannot exceed 150 characters!" },
             ]}
           >
-            <Input />
+            <Input className="rounded-md" />
           </Form.Item>
           <Form.Item
             name="keyword"
             label="Keyword"
             rules={[
-              { required: true, message: 'Please enter keyword!' },
-              { min: 2, message: 'Keyword must be at least 2 characters!' },
-              { max: 50, message: 'Keyword cannot exceed 50 characters!' }
+              { required: true, message: "Please enter keyword!" },
+              { min: 2, message: "Keyword must be at least 2 characters!" },
+              { max: 50, message: "Keyword cannot exceed 50 characters!" },
             ]}
           >
-            <Input />
+            <Input className="rounded-md" />
           </Form.Item>
           <Form.Item
             name="thumbnail"
             label="Thumbnail URL"
-            rules={[{ max: 255, message: 'URL cannot exceed 255 characters!' }]}
+            rules={[{ max: 255, message: "URL cannot exceed 255 characters!" }]}
           >
-            <Input />
+            <Input className="rounded-md" />
           </Form.Item>
           <Form.Item
             name="description"
             label="Description"
-            rules={[{ required: true, message: 'Please enter description!' }, { max: 255, message: 'Description cannot exceed 255 characters!' }]}
+            rules={[
+              { required: true, message: "Please enter description!" },
+              { max: 255, message: "Description cannot exceed 255 characters!" },
+            ]}
           >
-            <Input.TextArea rows={3} />
+            <TextArea rows={3} className="rounded-md" />
           </Form.Item>
-          <Form.Item
-            name="content"
-            label="Content"
-            rules={[{ required: true, message: 'Please enter content!' }]}
-          >
-            <Input.TextArea rows={6} />
+          <Form.Item name="content" label="Content" rules={[{ required: true, message: "Please enter content!" }]}>
+            <TextArea rows={6} className="rounded-md" />
           </Form.Item>
-          <Form.Item
-            name="date"
-            label="Date"
-          >
-            <DatePicker showTime style={{ width: '100%' }} />
+          <Form.Item name="date" label="Date">
+            <DatePicker showTime style={{ width: "100%" }} className="rounded-md" />
           </Form.Item>
         </Form>
       </Modal>
     </div>
-  );
-};
+  )
+}
 
-export default TechNewPage;
+export default TechNewPage

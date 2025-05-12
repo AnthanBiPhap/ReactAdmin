@@ -1,125 +1,153 @@
-import {
-  Table,
-  Space,
-  Input,
-  Button,
-  Modal,
-  Form,
-  message,
-  Select,
-  Tag,
-  InputNumber,
-  Upload,
-  Row,
-  Col,
-} from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, InboxOutlined } from '@ant-design/icons';
-import axios from 'axios';
-import { useState, useEffect } from 'react';
+"use client"
+
+import type React from "react"
+import type { ColumnType } from "antd/es/table"
+import type { Key } from "antd/es/table/interface"
+
+import { Table, Space, Input, Button, Modal, Form, message, Select, Tag, InputNumber, Row, Col, Typography } from "antd"
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from "@ant-design/icons"
+import axios from "axios"
+import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
+import { useAuthStore } from "../stores/useAuthStore"
+
+const { Title } = Typography
+const { TextArea } = Input
+const { Option } = Select
 
 interface Vendor {
-  _id: string;
-  companyName: string;
-  description?: string;
-  logoUrl?: string;
-  coverImageUrl?: string;
+  _id: string
+  companyName: string
+  description?: string
+  logoUrl?: string
+  coverImageUrl?: string
   address: {
-    street: string;
-    ward: string;
-    district: string;
-    city: string;
-    country: string;
-    postalCode: string;
-  };
-  contactPhone: string;
-  contactEmail: string;
-  website?: string;
-  socialLinks: Record<string, string>;
-  rating: number;
-  status: 'pending' | 'active' | 'suspended';
-  user: string;
-  createdAt: string;
-  updatedAt: string;
+    street: string
+    ward: string
+    district: string
+    city: string
+    country: string
+    postalCode: string
+  }
+  contactPhone: string
+  contactEmail: string
+  website?: string
+  socialLinks: Record<string, string>
+  rating: number
+  status: "pending" | "active" | "suspended"
+  user: string
+  createdAt: string
+  updatedAt: string
 }
 
 interface VendorFormValues {
-  companyName: string;
-  description?: string;
-  logoUrl?: string;
-  coverImageUrl?: string;
+  companyName: string
+  description?: string
+  logoUrl?: string
+  coverImageUrl?: string
   address: {
-    street: string;
-    ward: string;
-    district: string;
-    city: string;
-    country: string;
-    postalCode: string;
-  };
-  contactPhone: string;
-  contactEmail: string;
-  website?: string;
-  socialLinks: Record<string, string>;
-  rating: number;
-  status: 'pending' | 'active' | 'suspended';
-  user: string;
+    street: string
+    ward: string
+    district: string
+    city: string
+    country: string
+    postalCode: string
+  }
+  contactPhone: string
+  contactEmail: string
+  website?: string
+  socialLinks: Record<string, string>
+  rating: number
+  status: "pending" | "active" | "suspended"
+  user: string
 }
 
 const VendorPage: React.FC = () => {
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate()
+  const { tokens } = useAuthStore()
+  const [vendors, setVendors] = useState<Vendor[]>([])
+  const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 10,
     total: 0,
-  });
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
-  const [form] = Form.useForm();
-  const [users, setUsers] = useState<any[]>([]);
+  })
+  const [searchTerm, setSearchTerm] = useState("")
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null)
+  const [form] = Form.useForm()
+  const [users, setUsers] = useState<any[]>([])
 
   useEffect(() => {
-    fetchVendors();
-    fetchUsers();
-  }, [pagination.current, pagination.pageSize]);
+    fetchVendors()
+    fetchUsers()
+  }, [pagination.current, pagination.pageSize])
 
-  const fetchVendors = async () => {
+  const fetchVendors = async (search = "") => {
     try {
-      setLoading(true);
-      const response = await axios.get('http://localhost:8889/api/v1/vendors', {
+      if (!tokens?.accessToken) {
+        message.error("Vui lòng đăng nhập để tiếp tục")
+        navigate("/login")
+        return
+      }
+
+      setLoading(true)
+      const response = await axios.get("http://localhost:8889/api/v1/vendors", {
+        headers: { Authorization: `Bearer ${tokens.accessToken}` },
         params: {
           page: pagination.current,
           limit: pagination.pageSize,
+          ...(search ? { companyName: search } : {}),
         },
-      });
-      setVendors(response.data.data.vendors || []);
+      })
+      setVendors(response.data.data.vendors || [])
       setPagination({
         ...pagination,
         total: response.data.data.pagination?.total || 0,
-      });
-    } catch (error) {
-      message.error('Lỗi khi lấy danh sách nhà cung cấp');
+      })
+    } catch (error: any) {
+      handleError(error, "Lỗi khi lấy danh sách nhà cung cấp")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
+
+  const handleError = (error: any, defaultMessage: string) => {
+    if (error.response?.status === 401) {
+      message.error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại")
+      navigate("/login")
+    } else if (error.response?.data?.message) {
+      message.error(error.response.data.message)
+    } else {
+      message.error(defaultMessage)
+    }
+  }
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get('http://localhost:8889/api/v1/users');
-      setUsers(response.data.data.users || []);
-    } catch (error) {
-      message.error('Lỗi khi lấy danh sách người dùng');
+      if (!tokens?.accessToken) return
+      const response = await axios.get("http://localhost:8889/api/v1/users", {
+        headers: { Authorization: `Bearer ${tokens.accessToken}` },
+      })
+      setUsers(response.data.data.users || [])
+    } catch (error: any) {
+      handleError(error, "Lỗi khi lấy danh sách người dùng")
     }
-  };
+  }
+
+  const handleSearch = () => {
+    setPagination({ ...pagination, current: 1 })
+    fetchVendors(searchTerm)
+  }
 
   const handleAddVendor = () => {
-    setSelectedVendor(null);
-    form.resetFields();
-    setIsModalOpen(true);
-  };
+    setSelectedVendor(null)
+    form.resetFields()
+    setIsModalOpen(true)
+  }
 
   const handleEditVendor = (vendor: Vendor) => {
-    setSelectedVendor(vendor);
+    setSelectedVendor(vendor)
     form.setFieldsValue({
       companyName: vendor.companyName,
       description: vendor.description,
@@ -133,180 +161,285 @@ const VendorPage: React.FC = () => {
       rating: vendor.rating,
       status: vendor.status,
       user: vendor.user,
-    });
-    setIsModalOpen(true);
-  };
+    })
+    setIsModalOpen(true)
+  }
 
   const handleDeleteVendor = async (vendorId: string) => {
     try {
-      await Modal.confirm({
-        title: 'Xác nhận xóa',
-        content: 'Bạn có chắc chắn muốn xóa nhà cung cấp này?',
-        okText: 'Xóa',
-        okType: 'danger',
-        cancelText: 'Hủy',
-      });
+      if (!tokens?.accessToken) {
+        message.error("Vui lòng đăng nhập để tiếp tục")
+        navigate("/login")
+        return
+      }
 
-      await axios.delete(`http://localhost:8889/api/v1/vendors/${vendorId}`);
-      message.success('Xóa nhà cung cấp thành công');
-      fetchVendors();
-    } catch (error) {
-      message.error('Lỗi khi xóa nhà cung cấp');
+      await Modal.confirm({
+        title: "Xác nhận xóa",
+        content: "Bạn có chắc chắn muốn xóa nhà cung cấp này?",
+        okText: "Xóa",
+        okType: "danger",
+        cancelText: "Hủy",
+      })
+
+      setLoading(true)
+      await axios.delete(`http://localhost:8889/api/v1/vendors/${vendorId}`, {
+        headers: { Authorization: `Bearer ${tokens.accessToken}` },
+      })
+
+      message.success("Xóa nhà cung cấp thành công")
+      fetchVendors(searchTerm)
+    } catch (error: any) {
+      handleError(error, "Lỗi khi xóa nhà cung cấp")
+    } finally {
+      setLoading(false)
     }
-  };
+  }
 
   const handleModalOk = async () => {
     try {
-      const values = await form.validateFields();
-      
-      if (selectedVendor) {
-        await axios.put(`http://localhost:8889/api/v1/vendors/${selectedVendor._id}`, values);
-        message.success('Cập nhật nhà cung cấp thành công');
-      } else {
-        await axios.post('http://localhost:8889/api/v1/vendors', values);
-        message.success('Tạo mới nhà cung cấp thành công');
+      if (!tokens?.accessToken) {
+        message.error("Vui lòng đăng nhập để tiếp tục")
+        navigate("/login")
+        return
       }
 
-      setIsModalOpen(false);
-      fetchVendors();
-    } catch (error) {
-      message.error('Lỗi khi xử lý nhà cung cấp');
-    }
-  };
+      const values = await form.validateFields()
 
-  const columns = [
+      setLoading(true)
+      if (selectedVendor) {
+        await axios.put(`http://localhost:8889/api/v1/vendors/${selectedVendor._id}`, values, {
+          headers: { Authorization: `Bearer ${tokens.accessToken}` },
+        })
+        message.success("Cập nhật nhà cung cấp thành công")
+      } else {
+        await axios.post("http://localhost:8889/api/v1/vendors", values, {
+          headers: { Authorization: `Bearer ${tokens.accessToken}` },
+        })
+        message.success("Tạo mới nhà cung cấp thành công")
+      }
+
+      setIsModalOpen(false)
+      fetchVendors(searchTerm)
+    } catch (error: any) {
+      handleError(error, "Lỗi khi xử lý nhà cung cấp")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleTableChange = (newPagination: any) => {
+    setPagination({
+      ...pagination,
+      current: newPagination.current || pagination.current,
+      pageSize: newPagination.pageSize || pagination.pageSize,
+    })
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleString()
+  }
+
+  const columns: Array<ColumnType<Vendor>> = [
     {
-      title: 'Company Name',
-      dataIndex: 'companyName',
-      key: 'companyName',
-      render: (text: string) => <a>{text}</a>,
+      title: "Company Name",
+      dataIndex: "companyName",
+      key: "companyName",
+      render: (text: string) => <div className="font-semibold text-blue-600">{text}</div>,
+      sorter: (a: Vendor, b: Vendor) => a.companyName.localeCompare(b.companyName),
     },
     {
-      title: 'Logo',
-      dataIndex: 'logoUrl',
-      key: 'logoUrl',
-      render: (logo: string) => logo ? (
-        <img src={logo} alt="Logo" style={{ width: 50, height: 50 }} />
-      ) : (
-        <Tag color="warning">No Logo</Tag>
-      ),
+      title: "Logo",
+      dataIndex: "logoUrl",
+      key: "logoUrl",
+      render: (logo: string) =>
+        logo ? (
+          <img
+            src={logo || "/placeholder.svg"}
+            alt="Logo"
+            className="w-12 h-12 object-cover rounded-md border border-gray-200"
+            onError={(e) => {
+              const img = e.target as HTMLImageElement
+              img.src = "/placeholder.svg?height=50&width=50"
+            }}
+          />
+        ) : (
+          <Tag color="warning" className="px-2 py-1">
+            No Logo
+          </Tag>
+        ),
     },
     {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
       render: (status: string) => (
-        <Tag color={
-          status === 'active' ? 'green' : 
-          status === 'pending' ? 'blue' : 
-          'red'
-        }>
+        <Tag color={status === "active" ? "green" : status === "pending" ? "blue" : "red"} className="text-center w-20">
           {status}
         </Tag>
       ),
+      filters: [
+        { text: "Active", value: "active" },
+        { text: "Pending", value: "pending" },
+        { text: "Suspended", value: "suspended" },
+      ],
+      onFilter: (value: boolean | Key, record: Vendor) => record.status === value,
     },
     {
-      title: 'Rating',
-      dataIndex: 'rating',
-      key: 'rating',
-      render: (rating: number) => `${rating}/5`,
+      title: "Rating",
+      dataIndex: "rating",
+      key: "rating",
+      render: (rating: number) => <div className="font-medium">{rating}/5</div>,
+      sorter: (a: Vendor, b: Vendor) => a.rating - b.rating,
     },
     {
-      title: 'Contact',
-      dataIndex: 'contactEmail',
-      key: 'contactEmail',
+      title: "Contact",
+      dataIndex: "contactEmail",
+      key: "contactEmail",
       render: (email: string, record: Vendor) => (
         <div>
-          <div>{record.contactPhone}</div>
-          <div style={{ color: '#666' }}>{email}</div>
+          <div className="font-medium">{record.contactPhone}</div>
+          <div className="text-gray-500">{email}</div>
         </div>
       ),
     },
     {
-      title: 'Address',
-      dataIndex: 'address',
-      key: 'address',
+      title: "Address",
+      dataIndex: "address",
+      key: "address",
       render: (address: any) => (
         <div>
-          <div>{address.street}</div>
-          <div style={{ color: '#666' }}>
+          <div className="font-medium">{address.street}</div>
+          <div className="text-gray-500">
             {address.ward}, {address.district}, {address.city}
           </div>
         </div>
       ),
     },
     {
-      title: 'Created At',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date: string) => new Date(date).toLocaleString(),
+      title: "Created At",
+      dataIndex: "createdAt",
+      key: "createdAt",
+      render: (date: string) => formatDate(date),
     },
     {
-      title: 'Action',
-      key: 'action',
+      title: "Action",
+      key: "action",
       render: (_: any, record: Vendor) => (
         <Space size="middle">
-          <Button type="primary" icon={<EditOutlined />} onClick={() => handleEditVendor(record)}>
+          <Button
+            type="text"
+            icon={<EditOutlined />}
+            onClick={() => handleEditVendor(record)}
+            className="text-blue-500 hover:text-blue-700"
+          >
             Edit
           </Button>
-          <Button danger icon={<DeleteOutlined />} onClick={() => handleDeleteVendor(record._id)}>
+          <Button
+            type="text"
+            icon={<DeleteOutlined />}
+            onClick={() => handleDeleteVendor(record._id)}
+            className="text-red-500 hover:text-red-700"
+          >
             Delete
           </Button>
         </Space>
       ),
     },
-  ];
+  ]
 
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Vendor Management</h1>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddVendor}>
-          Add Vendor
-        </Button>
+    <div className="p-4 max-w-7xl mx-auto">
+      <div className="flex justify-between items-center flex-wrap gap-4 mb-6">
+        <Title level={3} className="m-0">
+          Vendor Management
+        </Title>
+        <Space>
+          <Input
+            placeholder="Search by company name"
+            allowClear
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onPressEnter={handleSearch}
+            className="w-80 rounded-md"
+            prefix={<SearchOutlined />}
+          />
+          <Button
+            type="primary"
+            icon={<SearchOutlined />}
+            onClick={handleSearch}
+            className="rounded-md bg-blue-500 hover:bg-blue-600"
+          >
+            Search
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleAddVendor}
+            className="rounded-md bg-blue-500 hover:bg-blue-600"
+          >
+            Add Vendor
+          </Button>
+        </Space>
       </div>
-      <Table
-        columns={columns}
-        dataSource={vendors}
-        loading={loading}
-        pagination={pagination}
-        rowKey="_id"
-        onChange={(newPagination) => {
-          setPagination({
-            ...pagination,
-            current: newPagination.current || pagination.current,
-            pageSize: newPagination.pageSize || pagination.pageSize,
-          });
-        }}
-      />
+
+      <div className="overflow-x-auto">
+        <Table
+          columns={columns}
+          dataSource={vendors}
+          loading={loading}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showSizeChanger: true,
+            pageSizeOptions: ["10", "20", "50"],
+            showTotal: (total) => <span className="ml-0">Total {total} vendors</span>,
+            className: "ant-table-pagination",
+          }}
+          onChange={handleTableChange}
+          rowKey="_id"
+          bordered
+          className="bg-white rounded-md shadow-sm"
+          rowClassName="hover:bg-gray-50 transition-colors"
+          scroll={{ x: "max-content" }}
+        />
+      </div>
+
       <Modal
-        title={selectedVendor ? 'Edit Vendor' : 'Add Vendor'}
+        title={selectedVendor ? "Edit Vendor" : "Add Vendor"}
         open={isModalOpen}
         onOk={handleModalOk}
         onCancel={() => setIsModalOpen(false)}
+        okButtonProps={{ className: "rounded-md bg-blue-500 hover:bg-blue-600" }}
+        cancelButtonProps={{ className: "rounded-md" }}
         width={1000}
+        className="p-4"
       >
-        <Form
-          form={form}
-          layout="vertical"
-        >
+        <Form form={form} layout="vertical" className="mt-4">
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
                 name="companyName"
                 label="Company Name"
-                rules={[{ required: true, message: 'Please enter company name!' }, { max: 100, message: 'Maximum 100 characters!' }]}
+                rules={[
+                  { required: true, message: "Please enter company name!" },
+                  { max: 100, message: "Maximum 100 characters!" },
+                ]}
               >
-                <Input />
+                <Input className="rounded-md" />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item
                 name="contactPhone"
                 label="Contact Phone"
-                rules={[{ required: true, message: 'Please enter contact phone!' }, { max: 20, message: 'Maximum 20 characters!' }]}
+                rules={[
+                  { required: true, message: "Please enter contact phone!" },
+                  { max: 20, message: "Maximum 20 characters!" },
+                ]}
               >
-                <Input />
+                <Input className="rounded-md" />
               </Form.Item>
             </Col>
           </Row>
@@ -315,88 +448,80 @@ const VendorPage: React.FC = () => {
               <Form.Item
                 name="contactEmail"
                 label="Contact Email"
-                rules={[{ required: true, message: 'Please enter contact email!' }, { type: 'email', message: 'Please enter a valid email!' }, { max: 100, message: 'Maximum 100 characters!' }]}
+                rules={[
+                  { required: true, message: "Please enter contact email!" },
+                  { type: "email", message: "Please enter a valid email!" },
+                  { max: 100, message: "Maximum 100 characters!" },
+                ]}
               >
-                <Input />
+                <Input className="rounded-md" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item
-                name="website"
-                label="Website"
-                rules={[{ max: 255, message: 'Maximum 255 characters!' }]}
-              >
-                <Input />
+              <Form.Item name="website" label="Website" rules={[{ max: 255, message: "Maximum 255 characters!" }]}>
+                <Input className="rounded-md" />
               </Form.Item>
             </Col>
           </Row>
           <Form.Item
             name="description"
             label="Description"
-            rules={[{ max: 1000, message: 'Maximum 1000 characters!' }]}
+            rules={[{ max: 1000, message: "Maximum 1000 characters!" }]}
           >
-            <Input.TextArea rows={3} />
+            <TextArea rows={3} className="rounded-md" />
           </Form.Item>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item
-                name="logoUrl"
-                label="Logo URL"
-                rules={[{ max: 255, message: 'Maximum 255 characters!' }]}
-              >
-                <Input />
+              <Form.Item name="logoUrl" label="Logo URL" rules={[{ max: 255, message: "Maximum 255 characters!" }]}>
+                <Input className="rounded-md" />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item
                 name="coverImageUrl"
                 label="Cover Image URL"
-                rules={[{ max: 255, message: 'Maximum 255 characters!' }]}
+                rules={[{ max: 255, message: "Maximum 255 characters!" }]}
               >
-                <Input />
+                <Input className="rounded-md" />
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item
-            name="address"
-            label="Address"
-            rules={[{ required: true, message: 'Please enter address!' }]}
-          >
+          <Form.Item name="address" label="Address" rules={[{ required: true, message: "Please enter address!" }]}>
             <Row gutter={16}>
               <Col span={6}>
                 <Form.Item
-                  name={['address', 'street']}
+                  name={["address", "street"]}
                   label="Street"
-                  rules={[{ required: true, message: 'Please enter street!' }]}
+                  rules={[{ required: true, message: "Please enter street!" }]}
                 >
-                  <Input />
+                  <Input className="rounded-md" />
                 </Form.Item>
               </Col>
               <Col span={6}>
                 <Form.Item
-                  name={['address', 'ward']}
+                  name={["address", "ward"]}
                   label="Ward"
-                  rules={[{ required: true, message: 'Please enter ward!' }]}
+                  rules={[{ required: true, message: "Please enter ward!" }]}
                 >
-                  <Input />
+                  <Input className="rounded-md" />
                 </Form.Item>
               </Col>
               <Col span={6}>
                 <Form.Item
-                  name={['address', 'district']}
+                  name={["address", "district"]}
                   label="District"
-                  rules={[{ required: true, message: 'Please enter district!' }]}
+                  rules={[{ required: true, message: "Please enter district!" }]}
                 >
-                  <Input />
+                  <Input className="rounded-md" />
                 </Form.Item>
               </Col>
               <Col span={6}>
                 <Form.Item
-                  name={['address', 'city']}
+                  name={["address", "city"]}
                   label="City"
-                  rules={[{ required: true, message: 'Please enter city!' }]}
+                  rules={[{ required: true, message: "Please enter city!" }]}
                 >
-                  <Input />
+                  <Input className="rounded-md" />
                 </Form.Item>
               </Col>
             </Row>
@@ -406,42 +531,37 @@ const VendorPage: React.FC = () => {
               <Form.Item
                 name="rating"
                 label="Rating"
-                rules={[{ required: true, message: 'Please enter rating!' }, { type: 'number', min: 0, max: 5, message: 'Rating must be between 0 and 5!' }]}
+                rules={[
+                  { required: true, message: "Please enter rating!" },
+                  { type: "number", min: 0, max: 5, message: "Rating must be between 0 and 5!" },
+                ]}
               >
-                <InputNumber min={0} max={5} />
+                <InputNumber min={0} max={5} className="w-full rounded-md" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item
-                name="status"
-                label="Status"
-                rules={[{ required: true, message: 'Please select status!' }]}
-              >
-                <Select>
-                  <Select.Option value="pending">Pending</Select.Option>
-                  <Select.Option value="active">Active</Select.Option>
-                  <Select.Option value="suspended">Suspended</Select.Option>
+              <Form.Item name="status" label="Status" rules={[{ required: true, message: "Please select status!" }]}>
+                <Select className="rounded-md">
+                  <Option value="pending">Pending</Option>
+                  <Option value="active">Active</Option>
+                  <Option value="suspended">Suspended</Option>
                 </Select>
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item
-            name="user"
-            label="User"
-            rules={[{ required: true, message: 'Please select user!' }]}
-          >
-            <Select showSearch optionFilterProp="children">
+          <Form.Item name="user" label="User" rules={[{ required: true, message: "Please select user!" }]}>
+            <Select showSearch optionFilterProp="children" className="rounded-md">
               {users.map((user) => (
-                <Select.Option key={user._id} value={user._id}>
+                <Option key={user._id} value={user._id}>
                   {user.fullName || user.email}
-                </Select.Option>
+                </Option>
               ))}
             </Select>
           </Form.Item>
         </Form>
       </Modal>
     </div>
-  );
-};
+  )
+}
 
-export default VendorPage;
+export default VendorPage

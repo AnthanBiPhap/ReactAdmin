@@ -499,10 +499,10 @@ const PaymentMethodsPage: React.FC = () => {
                 </div>
                 {record.metadata && Object.keys(record.metadata).length > 0 && (
                   <div className="mt-4">
-                    <h4 className="font-medium mb-2">Thông tin bổ sung:</h4>
-                    <pre className="bg-gray-100 p-2 rounded-md text-sm overflow-auto">
+                    {/* <h4 className="font-medium mb-2">Thông tin bổ sung:</h4> */}
+                    {/* <pre className="bg-gray-100 p-2 rounded-md text-sm overflow-auto">
                       {JSON.stringify(record.metadata, null, 2)}
-                    </pre>
+                    </pre> */}
                   </div>
                 )}
               </div>

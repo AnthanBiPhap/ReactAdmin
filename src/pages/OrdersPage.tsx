@@ -34,7 +34,19 @@ interface Product {
 interface Order {
   _id: string
   orderNumber: string
-  products: Product[]
+  products: Array<{
+    product: {
+      _id: string
+      product_name: string
+      price: number
+      salePrice: number
+      images: string[]
+    }
+    quantity: number
+    currentPrice: number
+    currentSalePrice: number
+    totalAmount: number
+  }>
   totalAmount: number
   shippingFee: number
   tax: number
@@ -48,11 +60,11 @@ interface Order {
     district: string
     city: string
     postalCode: string
-    fullName: string
-    country: string
-    addressLine1: string
-    addressLine2: string
-    state: string
+  }
+  shippingInfor: {
+    recipientName: string
+    phone: string
+    gender: "male" | "female"
   }
   user: {
     _id: string
@@ -146,19 +158,40 @@ const OrdersPage: React.FC = () => {
   }
 
   const handleEditOrder = (order: Order) => {
-    console.log('Loading order:', order)
+    console.log('Attempting to edit order:', {
+      orderId: order._id,
+      isAdmin: isAdmin,
+      hasProducts: order.products && order.products.length > 0,
+      hasShippingAddress: order.shippingAddress && order.shippingAddress.street
+    })
+    
+    if (!isAdmin) {
+      message.error('Bạn cần quyền admin để sửa đơn hàng')
+      return
+    }
+
+    if (!order.products || order.products.length === 0) {
+      message.error('Đơn hàng không có sản phẩm')
+      return
+    }
+
+    if (!order.shippingAddress || !order.shippingAddress.street) {
+      message.error('Đơn hàng không có địa chỉ giao hàng')
+      return
+    }
+
     setSelectedOrder(order)
     fetchProducts()
     setSelectedProducts(order.products.map(p => ({
-      productId: p.productId,
-      name: p.name,
-      price: p.price,
+      productId: p.product._id,
+      name: p.product.product_name,
+      price: p.product.price,
+      salePrice: p.product.salePrice,
       quantity: p.quantity
     })))
     // Set form values from API response
     form.setFieldsValue({
       orderNumber: order.orderNumber,
-      products: order.products.map((p) => p.name),
       totalAmount: order.totalAmount,
       shippingFee: order.shippingFee,
       tax: order.tax,
@@ -169,16 +202,14 @@ const OrdersPage: React.FC = () => {
       "user.fullName": order.user.fullName || '',
       "user.email": order.user.email || '',
       "user.phone": order.user.phone || '',
-      "shippingAddress.fullName": order.shippingAddress.fullName || '',
-      "shippingAddress.country": order.shippingAddress.country || 'Vietnam',
-      "shippingAddress.addressLine1": order.shippingAddress.addressLine1 || '',
-      "shippingAddress.addressLine2": order.shippingAddress.addressLine2 || '',
-      "shippingAddress.city": order.shippingAddress.city || '',
-      "shippingAddress.state": order.shippingAddress.state || '',
-      "shippingAddress.postalCode": order.shippingAddress.postalCode || '',
       "shippingAddress.street": order.shippingAddress.street || '',
       "shippingAddress.ward": order.shippingAddress.ward || '',
       "shippingAddress.district": order.shippingAddress.district || '',
+      "shippingAddress.city": order.shippingAddress.city || '',
+      "shippingAddress.postalCode": order.shippingAddress.postalCode || '',
+      "shippingInfor.recipientName": order.shippingInfor?.recipientName || '',
+      "shippingInfor.phone": order.shippingInfor?.phone || '',
+      "shippingInfor.gender": order.shippingInfor?.gender || 'male'
     })
     setIsModalOpen(true)
   }
@@ -384,11 +415,19 @@ const OrdersPage: React.FC = () => {
       render: (products: any[]) => (
         <div className="flex flex-col gap-1">
           {products?.map((product, index) => {
-            const productName = product?.product?.name || product?.name || 'Không xác định'
+            const productName = product?.product?.product_name || 'Không xác định'
+            const price = product?.currentSalePrice || product?.currentPrice || 0
             return (
-              <div key={index} className="flex items-center gap-2">
-                <span className="font-medium">{productName}</span>
-                <span className="text-sm text-gray-600">x{product.quantity}</span>
+              <div key={index} className="flex items-center justify-between p-2 border-b last:border-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{productName}</span>
+                  <span className="text-sm text-gray-600">x{product.quantity}</span>
+                </div>
+                <div className="text-sm">
+                  <span className="text-gray-600">Giá: {formatCurrency(price)}</span>
+                  <br />
+                  <span className="text-blue-600 font-medium">Tổng: {formatCurrency(price * product.quantity)}</span>
+                </div>
               </div>
             )
           })}
@@ -605,12 +644,20 @@ const OrdersPage: React.FC = () => {
                     <h4 className="font-medium text-lg mt-6 mb-3">Địa chỉ giao hàng</h4>
                     <div className="space-y-2">
                       <div className="flex justify-between">
-                        <span className="font-medium">Thành phố:</span>
-                        <span className="font-medium">{record.shippingAddress.city}</span>
+                        <span className="font-medium">Đường:</span>
+                        <span className="font-medium">{record.shippingAddress.street}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-medium">Quốc gia:</span>
-                        <span className="font-medium">{record.shippingAddress.country}</span>
+                        <span className="font-medium">Phường/Xã:</span>
+                        <span className="font-medium">{record.shippingAddress.ward}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">Quận/Huyện:</span>
+                        <span className="font-medium">{record.shippingAddress.district}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">Thành phố:</span>
+                        <span className="font-medium">{record.shippingAddress.city}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="font-medium">Mã bưu chính:</span>

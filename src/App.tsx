@@ -52,8 +52,7 @@ function App() {
          {/* Mac dinh cac trang khac su dung DefaultLayout */}
         <Route path='/' element={<DefaultLayout />}>
             <Route index element={<DashboardPage />} />
-            <Route path="dashboard" element={<DashboardPage />} />
-            <Route index element={<DashboardPage />} />
+            <Route path="dashboard" element={<DashboardPage />} />  
             <Route path="users" element={<UserPage />} />
             <Route path="activitylogs" element={<ActivityLogPage />} />
             <Route path="addresses" element={<AddressPage />} />
