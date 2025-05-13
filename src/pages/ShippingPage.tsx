@@ -23,6 +23,7 @@ import { useNavigate } from "react-router-dom"
 import { useAuthStore } from "../stores/useAuthStore"
 import type { ColumnType } from "antd/es/table"
 import type { Key } from "antd/es/table/interface"
+import dayjs from "dayjs"
 
 const { Title } = Typography
 const { Option } = Select
@@ -32,11 +33,11 @@ interface Shipping {
   carrier: string
   trackingNumber?: string
   status: "processing" | "shipped" | "delivered" | "failed"
-  estimatedDelivery?: Date
-  actualDelivery?: Date
+  estimatedDelivery?: string
+  actualDelivery?: string
   shippingMethod: string
   shippingFee: number
-  order: string
+  order: string | null
   createdAt: string
   updatedAt: string
 }
@@ -45,11 +46,58 @@ interface ShippingFormValues {
   carrier: string
   trackingNumber?: string
   status: "processing" | "shipped" | "delivered" | "failed"
-  estimatedDelivery?: Date
-  actualDelivery?: Date
+  estimatedDelivery?: any
+  actualDelivery?: any
   shippingMethod: string
   shippingFee: number
-  order: string
+  order: string | null
+}
+
+interface Order {
+  _id: string
+  orderNumber: string
+  products: Array<{
+    product: {
+      _id: string
+      product_name: string
+      price: number
+      salePrice: number
+      images: string[]
+    }
+    quantity: number
+    currentPrice: number
+    currentSalePrice: number
+    totalAmount: number
+    _id: string
+  }>
+  totalAmount: number
+  shippingFee: number
+  tax: number
+  discount: number
+  paymentMethod: string
+  paymentStatus: string
+  shippingAddress: {
+    street: string
+    ward: string
+    district: string
+    city: string
+    _id: string
+  }
+  shippingInfor: {
+    recipientName: string
+    phone: string
+    gender: string
+    _id: string
+  }
+  status: string
+  user: {
+    _id: string
+    userName: string
+    fullName: string
+    email: string
+  } | null
+  createdAt: string
+  updatedAt: string
 }
 
 const ShippingPage: React.FC = () => {
@@ -66,7 +114,7 @@ const ShippingPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedShipping, setSelectedShipping] = useState<Shipping | null>(null)
   const [form] = Form.useForm()
-  const [orders, setOrders] = useState<any[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
 
   useEffect(() => {
     fetchShippings()
@@ -90,11 +138,16 @@ const ShippingPage: React.FC = () => {
           ...(search ? { carrier: search } : {}),
         },
       })
-      setShippings(response.data.data.shippings || [])
-      setPagination({
-        ...pagination,
-        total: response.data.data.pagination?.total || 0,
-      })
+
+      if (response.data.statusCode === 200) {
+        setShippings(response.data.data.shippings || [])
+        setPagination({
+          ...pagination,
+          total: response.data.data.pagination?.totalRecord || 0,
+        })
+      } else {
+        message.error(response.data.message || "Lỗi khi lấy danh sách vận chuyển")
+      }
     } catch (error: any) {
       handleError(error, "Lỗi khi lấy danh sách vận chuyển")
     } finally {
@@ -108,6 +161,8 @@ const ShippingPage: React.FC = () => {
       navigate("/login")
     } else if (error.response?.data?.message) {
       message.error(error.response.data.message)
+    } else if (error.message) {
+      message.error(error.message)
     } else {
       message.error(defaultMessage)
     }
@@ -116,10 +171,16 @@ const ShippingPage: React.FC = () => {
   const fetchOrders = async () => {
     try {
       if (!tokens?.accessToken) return
+
       const response = await axios.get("http://localhost:8889/api/v1/orders", {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
       })
-      setOrders(response.data.data.orders || [])
+
+      if (response.data.statusCode === 200) {
+        setOrders(response.data.data.orders || [])
+      } else {
+        message.error(response.data.message || "Lỗi khi lấy danh sách đơn hàng")
+      }
     } catch (error: any) {
       handleError(error, "Lỗi khi lấy danh sách đơn hàng")
     }
@@ -138,16 +199,18 @@ const ShippingPage: React.FC = () => {
 
   const handleEditShipping = (shipping: Shipping) => {
     setSelectedShipping(shipping)
+
     form.setFieldsValue({
       carrier: shipping.carrier,
       trackingNumber: shipping.trackingNumber,
       status: shipping.status,
-      estimatedDelivery: shipping.estimatedDelivery ? new Date(shipping.estimatedDelivery) : undefined,
-      actualDelivery: shipping.actualDelivery ? new Date(shipping.actualDelivery) : undefined,
+      estimatedDelivery: shipping.estimatedDelivery ? dayjs(shipping.estimatedDelivery) : undefined,
+      actualDelivery: shipping.actualDelivery ? dayjs(shipping.actualDelivery) : undefined,
       shippingMethod: shipping.shippingMethod,
       shippingFee: shipping.shippingFee,
       order: shipping.order,
     })
+
     setIsModalOpen(true)
   }
 
@@ -168,12 +231,16 @@ const ShippingPage: React.FC = () => {
       })
 
       setLoading(true)
-      await axios.delete(`http://localhost:8889/api/v1/shippings/${shippingId}`, {
+      const response = await axios.delete(`http://localhost:8889/api/v1/shippings/${shippingId}`, {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
       })
 
-      message.success("Xóa vận chuyển thành công")
-      fetchShippings(searchTerm)
+      if (response.data.statusCode === 200) {
+        message.success("Xóa vận chuyển thành công")
+        fetchShippings(searchTerm)
+      } else {
+        message.error(response.data.message || "Lỗi khi xóa vận chuyển")
+      }
     } catch (error: any) {
       handleError(error, "Lỗi khi xóa vận chuyển")
     } finally {
@@ -190,18 +257,38 @@ const ShippingPage: React.FC = () => {
       }
 
       const values = await form.validateFields()
-
       setLoading(true)
+
+      // Format dates for API
+      const formattedValues = {
+        ...values,
+        estimatedDelivery: values.estimatedDelivery ? values.estimatedDelivery.toISOString() : undefined,
+        actualDelivery: values.actualDelivery ? values.actualDelivery.toISOString() : undefined,
+      }
+
+      let response
       if (selectedShipping) {
-        await axios.put(`http://localhost:8889/api/v1/shippings/${selectedShipping._id}`, values, {
+        // Update existing shipping
+        response = await axios.put(`http://localhost:8889/api/v1/shippings/${selectedShipping._id}`, formattedValues, {
           headers: { Authorization: `Bearer ${tokens.accessToken}` },
         })
-        message.success("Cập nhật vận chuyển thành công")
+
+        if (response.data.statusCode === 200) {
+          message.success("Cập nhật vận chuyển thành công")
+        } else {
+          message.error(response.data.message || "Lỗi khi cập nhật vận chuyển")
+        }
       } else {
-        await axios.post("http://localhost:8889/api/v1/shippings", values, {
+        // Create new shipping
+        response = await axios.post("http://localhost:8889/api/v1/shippings", formattedValues, {
           headers: { Authorization: `Bearer ${tokens.accessToken}` },
         })
-        message.success("Tạo mới vận chuyển thành công")
+
+        if (response.data.statusCode === 200) {
+          message.success("Tạo mới vận chuyển thành công")
+        } else {
+          message.error(response.data.message || "Lỗi khi tạo mới vận chuyển")
+        }
       }
 
       setIsModalOpen(false)
@@ -222,9 +309,67 @@ const ShippingPage: React.FC = () => {
   }
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return "-"
     const date = new Date(dateString)
     return date.toLocaleString()
   }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(amount)
+  }
+
+  // Render function for order info to handle both string ID and order object
+  const renderOrderInfo = (orderData: any) => {
+    try {
+      console.log('Rendering order info for:', orderData);
+      console.log('Available orders:', orders);
+      
+      // Handle case when orderData is null/undefined
+      if (!orderData) {
+        return <Tag color="red">No Order</Tag>;
+      }
+
+      // If orderData is an object with _id, use it directly
+      let order = orderData;
+      let orderId = orderData._id;
+      
+      // If orderData is just an ID string, find the order in the orders array
+      if (typeof orderData === 'string') {
+        order = orders.find((o) => o && o._id === orderData);
+        orderId = orderData;
+      }
+      
+      console.log('Using order:', order);
+      
+      if (!order) {
+        return <Tag color="orange">Order not found: {typeof orderId === 'string' ? orderId.substring(0, 8) + '...' : 'Invalid order data'}</Tag>;
+      }
+
+      // Safely extract order information
+      const orderNumber = order.orderNumber || "N/A";
+      const recipientName = order.shippingInfor?.recipientName || "";
+      const userName = order.user?.fullName || "";
+      const displayName = recipientName || userName || "Unknown User";
+      const status = order.status || "pending";
+
+      return (
+        <div>
+          <div className="font-semibold mb-1">{orderNumber}</div>
+          <div className="text-gray-500">{displayName}</div>
+          <div className="text-gray-500">
+            {status === "completed" ? (
+              <Tag color="green">Completed</Tag>
+            ) : (
+              <Tag color="blue">{status}</Tag>
+            )}
+          </div>
+        </div>
+      );
+    } catch (error) {
+      console.error("Error rendering order info:", error);
+      return <Tag color="red">Error loading order</Tag>;
+    }
+  };
 
   const columns: Array<ColumnType<Shipping>> = [
     {
@@ -237,6 +382,7 @@ const ShippingPage: React.FC = () => {
       title: "Tracking Number",
       dataIndex: "trackingNumber",
       key: "trackingNumber",
+      render: (text: string) => text || "-",
     },
     {
       title: "Status",
@@ -275,41 +421,26 @@ const ShippingPage: React.FC = () => {
       title: "Shipping Fee",
       dataIndex: "shippingFee",
       key: "shippingFee",
-      render: (fee: number) => `$${fee.toFixed(2)}`,
+      render: (fee: number) => formatCurrency(fee),
       sorter: (a: Shipping, b: Shipping) => a.shippingFee - b.shippingFee,
     },
     {
       title: "Order Info",
       dataIndex: "order",
       key: "order",
-      render: (orderId: string, record: Shipping) => {
-        const order = orders.find((o) => o._id === orderId)
-        return (
-          <div>
-            <div className="font-semibold mb-1">{order?.orderNumber || orderId}</div>
-            <div className="text-gray-500">{order?.user?.fullName || "Unknown User"}</div>
-            <div className="text-gray-500">
-              {order?.status === "completed" ? (
-                <Tag color="green">Completed</Tag>
-              ) : (
-                <Tag color="blue">{order?.status || "Pending"}</Tag>
-              )}
-            </div>
-          </div>
-        )
-      },
+      render: renderOrderInfo,
     },
     {
       title: "Estimated Delivery",
       dataIndex: "estimatedDelivery",
       key: "estimatedDelivery",
-      render: (date: Date) => (date ? formatDate(date.toString()) : "-"),
+      render: (date: string) => formatDate(date),
     },
     {
       title: "Actual Delivery",
       dataIndex: "actualDelivery",
       key: "actualDelivery",
-      render: (date: Date) => (date ? formatDate(date.toString()) : "-"),
+      render: (date: string) => formatDate(date),
     },
     {
       title: "Created At",
@@ -460,11 +591,12 @@ const ShippingPage: React.FC = () => {
           >
             <InputNumber min={0} style={{ width: "100%" }} className="rounded-md" />
           </Form.Item>
-          <Form.Item name="order" label="Order" rules={[{ required: true, message: "Please select order!" }]}>
-            <Select showSearch optionFilterProp="children" className="rounded-md">
+          <Form.Item name="order" label="Order">
+            <Select showSearch optionFilterProp="children" className="rounded-md" allowClear>
+              <Option value={null}>No Order</Option>
               {orders.map((order) => (
                 <Option key={order._id} value={order._id}>
-                  {order.orderNumber} - {order.user?.fullName || "Unknown User"}
+                  {`${order.orderNumber} - ${order.shippingInfor?.recipientName || order.user?.fullName || "Unknown User"}`}
                 </Option>
               ))}
             </Select>

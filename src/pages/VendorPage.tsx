@@ -100,11 +100,16 @@ const VendorPage: React.FC = () => {
           ...(search ? { companyName: search } : {}),
         },
       })
-      setVendors(response.data.data.vendors || [])
-      setPagination({
-        ...pagination,
-        total: response.data.data.pagination?.total || 0,
-      })
+
+      if (response.data.statusCode === 200) {
+        setVendors(response.data.data.vendors || [])
+        setPagination({
+          ...pagination,
+          total: response.data.data.pagination?.total || 0,
+        })
+      } else {
+        message.error(response.data.message || "Lỗi khi lấy danh sách nhà cung cấp")
+      }
     } catch (error: any) {
       handleError(error, "Lỗi khi lấy danh sách nhà cung cấp")
     } finally {
@@ -118,6 +123,8 @@ const VendorPage: React.FC = () => {
       navigate("/login")
     } else if (error.response?.data?.message) {
       message.error(error.response.data.message)
+    } else if (error.message) {
+      message.error(error.message)
     } else {
       message.error(defaultMessage)
     }
@@ -126,10 +133,16 @@ const VendorPage: React.FC = () => {
   const fetchUsers = async () => {
     try {
       if (!tokens?.accessToken) return
+
       const response = await axios.get("http://localhost:8889/api/v1/users", {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
       })
-      setUsers(response.data.data.users || [])
+
+      if (response.data.statusCode === 200) {
+        setUsers(response.data.data.users || [])
+      } else {
+        message.error(response.data.message || "Lỗi khi lấy danh sách người dùng")
+      }
     } catch (error: any) {
       handleError(error, "Lỗi khi lấy danh sách người dùng")
     }
@@ -148,12 +161,19 @@ const VendorPage: React.FC = () => {
 
   const handleEditVendor = (vendor: Vendor) => {
     setSelectedVendor(vendor)
+
+    // Set form values with explicit address fields
     form.setFieldsValue({
       companyName: vendor.companyName,
       description: vendor.description,
       logoUrl: vendor.logoUrl,
       coverImageUrl: vendor.coverImageUrl,
-      address: vendor.address,
+      "address.street": vendor.address.street,
+      "address.ward": vendor.address.ward,
+      "address.district": vendor.address.district,
+      "address.city": vendor.address.city,
+      "address.country": vendor.address.country,
+      "address.postalCode": vendor.address.postalCode,
       contactPhone: vendor.contactPhone,
       contactEmail: vendor.contactEmail,
       website: vendor.website,
@@ -162,6 +182,7 @@ const VendorPage: React.FC = () => {
       status: vendor.status,
       user: vendor.user,
     })
+
     setIsModalOpen(true)
   }
 
@@ -182,12 +203,16 @@ const VendorPage: React.FC = () => {
       })
 
       setLoading(true)
-      await axios.delete(`http://localhost:8889/api/v1/vendors/${vendorId}`, {
+      const response = await axios.delete(`http://localhost:8889/api/v1/vendors/${vendorId}`, {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
       })
 
-      message.success("Xóa nhà cung cấp thành công")
-      fetchVendors(searchTerm)
+      if (response.data.statusCode === 200) {
+        message.success("Xóa nhà cung cấp thành công")
+        fetchVendors(searchTerm)
+      } else {
+        message.error(response.data.message || "Lỗi khi xóa nhà cung cấp")
+      }
     } catch (error: any) {
       handleError(error, "Lỗi khi xóa nhà cung cấp")
     } finally {
@@ -205,17 +230,44 @@ const VendorPage: React.FC = () => {
 
       const values = await form.validateFields()
 
+      // Ensure address object is properly structured
+      const formattedValues = {
+        ...values,
+        address: {
+          street: values.address?.street || "",
+          ward: values.address?.ward || "",
+          district: values.address?.district || "",
+          city: values.address?.city || "",
+          country: values.address?.country || "Việt Nam",
+          postalCode: values.address?.postalCode || "550000",
+        },
+      }
+
       setLoading(true)
+
+      let response
       if (selectedVendor) {
-        await axios.put(`http://localhost:8889/api/v1/vendors/${selectedVendor._id}`, values, {
+        // Update existing vendor
+        response = await axios.put(`http://localhost:8889/api/v1/vendors/${selectedVendor._id}`, formattedValues, {
           headers: { Authorization: `Bearer ${tokens.accessToken}` },
         })
-        message.success("Cập nhật nhà cung cấp thành công")
+
+        if (response.data.statusCode === 200) {
+          message.success("Cập nhật nhà cung cấp thành công")
+        } else {
+          message.error(response.data.message || "Lỗi khi cập nhật nhà cung cấp")
+        }
       } else {
-        await axios.post("http://localhost:8889/api/v1/vendors", values, {
+        // Create new vendor
+        response = await axios.post("http://localhost:8889/api/v1/vendors", formattedValues, {
           headers: { Authorization: `Bearer ${tokens.accessToken}` },
         })
-        message.success("Tạo mới nhà cung cấp thành công")
+
+        if (response.data.statusCode === 200) {
+          message.success("Tạo mới nhà cung cấp thành công")
+        } else {
+          message.error(response.data.message || "Lỗi khi tạo mới nhà cung cấp")
+        }
       }
 
       setIsModalOpen(false)
@@ -486,7 +538,8 @@ const VendorPage: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="address" label="Address" rules={[{ required: true, message: "Please enter address!" }]}>
+          <div className="mb-4">
+            <div className="mb-2 font-medium">Address</div>
             <Row gutter={16}>
               <Col span={6}>
                 <Form.Item
@@ -525,7 +578,7 @@ const VendorPage: React.FC = () => {
                 </Form.Item>
               </Col>
             </Row>
-          </Form.Item>
+          </div>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item

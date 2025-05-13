@@ -23,10 +23,6 @@ interface ProductInventory {
     _id: string
     product_name: string
   }
-  variant: {
-    _id: string
-    variantName: string
-  } | null
   location: {
     _id: string
     name: string
@@ -53,12 +49,10 @@ const ProductInventoriesPage: React.FC = () => {
   const [selectedInventory, setSelectedInventory] = useState<ProductInventory | null>(null)
   const [searchText, setSearchText] = useState("")
   const [products, setProducts] = useState<{ _id: string; product_name: string }[]>([])
-  const [variants, setVariants] = useState<{ _id: string; variantName: string }[]>([])
   const [locations, setLocations] = useState<{ _id: string; name: string }[]>([])
 
   useEffect(() => {
     fetchProducts()
-    fetchVariants()
     fetchLocations()
     fetchInventories()
   }, [tokens?.accessToken, pagination.page, pagination.limit, searchText])
@@ -83,25 +77,7 @@ const ProductInventoriesPage: React.FC = () => {
     }
   }
 
-  const fetchVariants = async () => {
-    try {
-      if (!tokens?.accessToken) return
 
-      const response = await axios.get("http://localhost:8889/api/v1/product-variants", {
-        headers: { Authorization: `Bearer ${tokens.accessToken}` },
-        params: { limit: 100 },
-      })
-
-      setVariants(
-        response.data.data.variants.map((v: any) => ({
-          _id: v._id,
-          variantName: v.variantName,
-        })),
-      )
-    } catch (error) {
-      console.error("Error fetching variants:", error)
-    }
-  }
 
   const fetchLocations = async () => {
     try {
@@ -145,7 +121,6 @@ const ProductInventoriesPage: React.FC = () => {
       const transformedInventories = response.data.data.productIventories.map((inventory: any) => ({
         ...inventory,
         product: inventory.product || { _id: "", product_name: "" },
-        variant: inventory.variant || { _id: "", variantName: "" },
         location: inventory.location || { _id: "", name: "" },
         status: getStatus(inventory),
       }))
@@ -177,16 +152,22 @@ const ProductInventoriesPage: React.FC = () => {
 
   const handleAddInventory = () => {
     setSelectedInventory(null)
-    form.resetFields()
+    form.setFieldsValue({
+      product: undefined,
+      location: null,
+      quantity: 0,
+      reservedQuantity: 0,
+      lowStockThreshold: 10, // Default threshold
+      lastRestocked: new Date().toISOString().split('T')[0], // Today's date
+    })
     setIsModalOpen(true)
   }
 
   const handleEditInventory = (inventory: ProductInventory) => {
     setSelectedInventory(inventory)
     form.setFieldsValue({
-      product: inventory.product._id,
-      variant: inventory.variant?._id,
-      location: inventory.location?._id,
+      product: inventory.product?._id || '',
+      location: inventory.location?._id || null,
       quantity: inventory.quantity,
       reservedQuantity: inventory.reservedQuantity,
       lowStockThreshold: inventory.lowStockThreshold,
@@ -236,18 +217,24 @@ const ProductInventoriesPage: React.FC = () => {
 
       setSaving(true)
       const values = await form.validateFields()
+      
+      // Prepare the data to send
+      const { variant, ...inventoryData } = values;
+      inventoryData.location = values.location || null; // Handle location if needed
 
       if (selectedInventory) {
-        await axios.put(`http://localhost:8889/api/v1/productiventories/${selectedInventory._id}`, values, {
-          headers: { Authorization: `Bearer ${tokens.accessToken}` },
-        })
-
+        await axios.put(
+          `http://localhost:8889/api/v1/productiventories/${selectedInventory._id}`,
+          inventoryData,
+          { headers: { Authorization: `Bearer ${tokens.accessToken}` } }
+        )
         message.success("Cập nhật mục thành công")
       } else {
-        await axios.post("http://localhost:8889/api/v1/productiventories", values, {
-          headers: { Authorization: `Bearer ${tokens.accessToken}` },
-        })
-
+        await axios.post(
+          "http://localhost:8889/api/v1/productiventories",
+          inventoryData,
+          { headers: { Authorization: `Bearer ${tokens.accessToken}` } }
+        )
         message.success("Tạo mới mục thành công")
       }
 
@@ -297,15 +284,6 @@ const ProductInventoriesPage: React.FC = () => {
       render: (product: any) => <span className="text-blue-500 font-semibold">{product.product_name}</span>,
       sorter: (a: ProductInventory, b: ProductInventory) =>
         a.product.product_name.localeCompare(b.product.product_name),
-      sortDirections: ["ascend", "descend"] as ("ascend" | "descend")[],
-    },
-    {
-      title: "Biến Đổi",
-      dataIndex: "variant",
-      key: "variant",
-      render: (variant: any) => variant?.variantName || "-",
-      sorter: (a: ProductInventory, b: ProductInventory) =>
-        (a.variant?.variantName || "").localeCompare(b.variant?.variantName || ""),
       sortDirections: ["ascend", "descend"] as ("ascend" | "descend")[],
     },
     {
@@ -472,16 +450,6 @@ const ProductInventoriesPage: React.FC = () => {
               {products.map((p) => (
                 <Select.Option key={p._id} value={p._id}>
                   {p.product_name}
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item name="variant" label="Biến Đổi">
-            <Select showSearch placeholder="Chọn biến đổi" optionFilterProp="children" className="rounded-md">
-              {variants.map((v) => (
-                <Select.Option key={v._id} value={v._id}>
-                  {v.variantName}
                 </Select.Option>
               ))}
             </Select>

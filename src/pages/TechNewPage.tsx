@@ -61,14 +61,20 @@ const TechNewPage: React.FC = () => {
       }
 
       setLoading(true)
-      const response = await axios.get("http://localhost:8889/api/v1/techNews", {
+      const params = {
+        page: pagination.current,
+        limit: pagination.pageSize,
+        ...(search ? { title: search } : {}),
+      }
+      
+      console.log('Fetching tech news with params:', params)
+      const response = await axios.get("http://localhost:8889/api/v1/technews", {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
-        params: {
-          page: pagination.current,
-          limit: pagination.pageSize,
-          ...(search ? { title: search } : {}),
-        },
+        params,
       })
+      
+      console.log('API Response:', response.data)
+      
       setTechNews(response.data.data.techNews || [])
       setPagination({
         ...pagination,
@@ -133,7 +139,7 @@ const TechNewPage: React.FC = () => {
       })
 
       setLoading(true)
-      await axios.delete(`http://localhost:8889/api/v1/techNews/${techNewId}`, {
+      await axios.delete(`http://localhost:8889/api/v1/technews/${techNewId}`, {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
       })
 
@@ -158,12 +164,12 @@ const TechNewPage: React.FC = () => {
 
       setLoading(true)
       if (selectedTechNew) {
-        await axios.put(`http://localhost:8889/api/v1/techNews/${selectedTechNew._id}`, values, {
+        await axios.put(`http://localhost:8889/api/v1/technews/${selectedTechNew._id}`, values, {
           headers: { Authorization: `Bearer ${tokens.accessToken}` },
         })
         message.success("Cập nhật tin tức thành công")
       } else {
-        await axios.post("http://localhost:8889/api/v1/techNews", values, {
+        await axios.post("http://localhost:8889/api/v1/technews", values, {
           headers: { Authorization: `Bearer ${tokens.accessToken}` },
         })
         message.success("Tạo mới tin tức thành công")
