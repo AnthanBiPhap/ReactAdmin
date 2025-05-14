@@ -7,6 +7,7 @@ import axios from "axios"
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuthStore } from "../stores/useAuthStore"
+import dayjs from 'dayjs'
 
 const { Title } = Typography
 const { TextArea } = Input
@@ -40,7 +41,7 @@ const TechNewPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState({
     current: 1,
-    pageSize: 10,
+    pageSize: 8, // Số lượng mặc định mỗi trang (nếu cần)
     total: 0,
   })
   const [searchTerm, setSearchTerm] = useState("")
@@ -49,8 +50,8 @@ const TechNewPage: React.FC = () => {
   const [form] = Form.useForm()
 
   useEffect(() => {
-    fetchTechNews()
-  }, [pagination.current, pagination.pageSize])
+    fetchTechNews(searchTerm)
+  }, [pagination.current, pagination.pageSize, searchTerm])
 
   const fetchTechNews = async (search = "") => {
     try {
@@ -59,27 +60,37 @@ const TechNewPage: React.FC = () => {
         navigate("/login")
         return
       }
-
+  
       setLoading(true)
       const params = {
         page: pagination.current,
-        limit: pagination.pageSize,
+        sort_by: 'createdAt',
+        sort_type: 'desc',
         ...(search ? { title: search } : {}),
       }
       
-      console.log('Fetching tech news with params:', params)
+      console.log('Đang tải tin tức với tham số:', params)
       const response = await axios.get("http://localhost:8889/api/v1/technews", {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
         params,
       })
       
-      console.log('API Response:', response.data)
+      console.log('Phản hồi từ API:', response.data)
       
-      setTechNews(response.data.data.techNews || [])
-      setPagination({
-        ...pagination,
-        total: response.data.data.pagination?.total || 0,
+      console.log('Dữ liệu nhận được:', {
+        currentPage: pagination.current,
+        pageSize: pagination.pageSize,
+        totalItems: response.data.data.pagination?.total,
+        itemsCount: response.data.data.techNews?.length,
+        data: response.data.data.techNews
       })
+      
+      // Cập nhật dữ liệu và thông tin phân trang
+      setTechNews(response.data.data.techNews || [])
+      setPagination(prev => ({
+        ...prev,
+        total: response.data.data.pagination?.totalRecord || 0, // Sử dụng totalRecord từ API
+      }))
     } catch (error: any) {
       handleError(error, "Lỗi khi lấy danh sách tin tức công nghệ")
     } finally {
@@ -99,8 +110,10 @@ const TechNewPage: React.FC = () => {
   }
 
   const handleSearch = () => {
-    setPagination({ ...pagination, current: 1 })
-    fetchTechNews(searchTerm)
+    setPagination(prev => ({
+      ...prev,
+      current: 1,
+    }))
   }
 
   const handleAddTechNew = () => {
@@ -110,6 +123,7 @@ const TechNewPage: React.FC = () => {
   }
 
   const handleEditTechNew = (techNew: TechNew) => {
+    console.log('Đang chỉnh sửa tin tức:', techNew)
     setSelectedTechNew(techNew)
     form.setFieldsValue({
       title: techNew.title,
@@ -117,7 +131,7 @@ const TechNewPage: React.FC = () => {
       thumbnail: techNew.thumbnail,
       description: techNew.description,
       content: techNew.content,
-      date: techNew.date ? new Date(techNew.date) : undefined,
+      date: techNew.date ? dayjs(techNew.date) : undefined, // Sử dụng dayjs cho DatePicker
     })
     setIsModalOpen(true)
   }
@@ -161,22 +175,52 @@ const TechNewPage: React.FC = () => {
       }
 
       const values = await form.validateFields()
+      console.log('Giá trị form:', values)
 
       setLoading(true)
+      // Format lại ngày tháng trước khi gửi đi
+      const payload = selectedTechNew
+        ? {
+            ...values,
+            date: values.date ? values.date.toISOString() : undefined,
+          }
+        : {
+            ...values,
+            date: values.date ? values.date.toISOString() : new Date().toISOString(),
+          }
+      
       if (selectedTechNew) {
-        await axios.put(`http://localhost:8889/api/v1/technews/${selectedTechNew._id}`, values, {
+        console.log('Đang cập nhật với dữ liệu:', payload)
+        // 1. Gọi API cập nhật
+        await axios.put(`http://localhost:8889/api/v1/technews/${selectedTechNew._id}`, payload, {
           headers: { Authorization: `Bearer ${tokens.accessToken}` },
         })
+        
+        // 2. Luôn gọi lại API để lấy dữ liệu mới nhất từ server
+        await fetchTechNews(searchTerm)
         message.success("Cập nhật tin tức thành công")
       } else {
-        await axios.post("http://localhost:8889/api/v1/technews", values, {
+        console.log('Đang tạo mới với dữ liệu:', payload)
+        await axios.post("http://localhost:8889/api/v1/technews", payload, {
           headers: { Authorization: `Bearer ${tokens.accessToken}` },
         })
         message.success("Tạo mới tin tức thành công")
+        // Quay về trang 1 sau khi tạo mới
+        setPagination(prev => ({
+          ...prev,
+          current: 1,
+        }))
       }
-
+      
+      // Đóng modal và reset form
       setIsModalOpen(false)
-      fetchTechNews(searchTerm)
+      setSelectedTechNew(null)
+      form.resetFields()
+      
+      // Nếu là tạo mới, load lại dữ liệu
+      if (!selectedTechNew) {
+        await fetchTechNews(searchTerm)
+      }
     } catch (error: any) {
       handleError(error, "Lỗi khi xử lý tin tức")
     } finally {
@@ -185,9 +229,10 @@ const TechNewPage: React.FC = () => {
   }
 
   const handleTableChange = (newPagination: any) => {
+    console.log('Thay đổi phân trang:', newPagination)
     setPagination({
       ...pagination,
-      current: newPagination.current || pagination.current,
+      current: newPagination.current,
       pageSize: newPagination.pageSize || pagination.pageSize,
     })
   }
@@ -196,7 +241,7 @@ const TechNewPage: React.FC = () => {
     const date = new Date(dateString)
     return date.toLocaleString()
   }
-
+ 
   const columns = [
     {
       title: "Title",

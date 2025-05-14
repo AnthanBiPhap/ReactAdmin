@@ -1,15 +1,15 @@
 "use client"
 
-import type React from "react"
+import React from "react"
 import { useState, useEffect } from "react"
 import { Table, Button, Space, Modal, Form, message, Select, InputNumber, Typography, Input } from "antd"
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ShoppingCartOutlined } from "@ant-design/icons"
 import axios from "axios"
 import { useAuthStore } from "../stores/useAuthStore"
 import { useNavigate } from "react-router-dom"
+import debounce from "lodash/debounce"
 
 const { Title } = Typography
-const { Search } = Input
 
 interface Cart {
   _id: string
@@ -54,6 +54,30 @@ const CartPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedCart, setSelectedCart] = useState<Cart | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [allCarts, setAllCarts] = useState<Cart[]>([])
+
+  // Debounced search
+  const debouncedSearch = React.useCallback(
+    debounce((search: string) => {
+      setPagination(prev => ({ ...prev, page: 1 }))
+      loadCarts(search)
+    }, 300),
+    []
+  )
+
+  // Clean up debounce on unmount
+  useEffect(() => {
+    return () => {
+      debouncedSearch.cancel()
+    }
+  }, [debouncedSearch])
+
+  // Initial load
+  useEffect(() => {
+    loadCarts()
+    fetchUsers()
+    fetchProducts()
+  }, [tokens?.accessToken])
 
   const [products, setProducts] = useState<any[]>([])
   const [selectedProductKeys, setSelectedProductKeys] = useState<string[]>([])
@@ -61,11 +85,10 @@ const CartPage: React.FC = () => {
 
   const isAdmin = user?.roles === "admin"
 
+  // Handle search input change
   useEffect(() => {
-    fetchCarts()
-    fetchUsers()
-    fetchProducts()
-  }, [tokens?.accessToken, pagination.page, pagination.limit])
+    debouncedSearch(searchTerm)
+  }, [searchTerm, debouncedSearch])
 
   useEffect(() => {
     // Tự động cập nhật tổng tiền khi sản phẩm hoặc số lượng thay đổi
@@ -73,28 +96,68 @@ const CartPage: React.FC = () => {
     form.setFieldsValue({ totalAmount: total })
   }, [selectedProducts, form])
 
-  const fetchCarts = async (search = "") => {
+  const fetchAllCarts = async () => {
     try {
       if (!tokens?.accessToken) {
         message.error("Vui lòng đăng nhập để tiếp tục")
         navigate("/login")
-        return
+        return []
       }
 
-      setLoading(true)
       const response = await axios.get("http://localhost:8889/api/v1/carts", {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
         params: {
-          page: pagination.page,
-          limit: pagination.limit,
-          ...(search ? { userName: search } : {}),
+          page: 1,
+          limit: 1000, // Lấy tất cả bản ghi
         },
       })
 
-      setCarts(response.data.data.carts)
-      setPagination(response.data.data.pagination)
+      return response.data.data.carts || []
     } catch (error: any) {
       handleError(error, "Lỗi khi lấy danh sách giỏ hàng")
+      return []
+    }
+  }
+
+  const filterCarts = (carts: Cart[], search: string) => {
+    if (!search) return carts
+    
+    const searchLower = search.toLowerCase()
+    return carts.filter(cart => 
+      (cart.user?.userName?.toLowerCase().includes(searchLower)) ||
+      (cart.user?.fullName?.toLowerCase().includes(searchLower)) ||
+      cart.items.some(item => 
+        item.product?.product_name?.toLowerCase().includes(searchLower)
+      )
+    )
+  }
+
+  const loadCarts = async (search = "") => {
+    try {
+      setLoading(true)
+      
+      // Nếu chưa có dữ liệu hoặc đang tìm kiếm, lấy lại dữ liệu từ API
+      if (allCarts.length === 0 || search) {
+        const data = await fetchAllCarts()
+        setAllCarts(data)
+        
+        const filtered = filterCarts(data, search)
+        setCarts(filtered)
+        setPagination(prev => ({
+          ...prev,
+          totalRecord: filtered.length
+        }))
+      } else {
+        // Nếu đã có dữ liệu, chỉ lọc lại
+        const filtered = filterCarts(allCarts, search)
+        setCarts(filtered)
+        setPagination(prev => ({
+          ...prev,
+          totalRecord: filtered.length
+        }))
+      }
+    } catch (error) {
+      console.error("Error loading carts:", error)
     } finally {
       setLoading(false)
     }
@@ -214,7 +277,9 @@ const CartPage: React.FC = () => {
           })
 
           message.success("Xóa giỏ hàng thành công")
-          fetchCarts(searchTerm)
+          // Làm mới dữ liệu
+          setAllCarts([])
+          loadCarts(searchTerm)
         } catch (error: any) {
           handleError(error, "Lỗi khi xóa giỏ hàng")
         } finally {
@@ -302,7 +367,9 @@ const CartPage: React.FC = () => {
       }
 
       setIsModalOpen(false)
-      fetchCarts(searchTerm)
+      // Làm mới dữ liệu sau khi thêm/cập nhật
+      setAllCarts([])
+      loadCarts(searchTerm)
     } catch (error: any) {
       console.error("Error:", error)
       if (error.message) {
@@ -325,11 +392,7 @@ const CartPage: React.FC = () => {
     })
   }
 
-  const handleSearch = (value: string) => {
-    setSearchTerm(value)
-    setPagination({ ...pagination, page: 1 })
-    fetchCarts(value)
-  }
+
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -484,16 +547,12 @@ const CartPage: React.FC = () => {
 
       <div className="mb-6">
         <Space>
-          <Search
-            placeholder="Tìm kiếm theo tên người dùng"
+          <Input
+            placeholder="Tìm kiếm theo tên, tài khoản hoặc sản phẩm"
+            prefix={<SearchOutlined />}
             allowClear
-            enterButton={
-              <Button type="primary" icon={<SearchOutlined />}>
-                Tìm kiếm
-              </Button>
-            }
-            size="middle"
-            onSearch={handleSearch}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="w-80 rounded-md"
           />
         </Space>
@@ -510,7 +569,7 @@ const CartPage: React.FC = () => {
             total: pagination.totalRecord,
             showSizeChanger: true,
             pageSizeOptions: ["10", "20", "50"],
-            showTotal: (total) => <span className="ml-0">Total {total} carts</span>,
+            showTotal: (total) => <span className="ml-0">Tổng cộng {total} giỏ hàng</span>,
             className: "ant-table-pagination",
           }}
           onChange={handleTableChange}

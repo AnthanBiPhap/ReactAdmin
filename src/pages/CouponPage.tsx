@@ -1,13 +1,27 @@
 "use client"
 
-import type React from "react"
+import React from "react"
 import { useState, useEffect } from "react"
-import { Table, Button, Space, Modal, Form, Input, message, DatePicker, Select, Typography, InputNumber, Switch } from "antd"
+import {
+  Table,
+  Button,
+  Space,
+  Modal,
+  Form,
+  Input,
+  message,
+  DatePicker,
+  Select,
+  Typography,
+  InputNumber,
+  Switch,
+} from "antd"
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, TagOutlined } from "@ant-design/icons"
 import axios from "axios"
 import { useAuthStore } from "../stores/useAuthStore"
 import { useNavigate } from "react-router-dom"
 import dayjs from "dayjs"
+import debounce from "lodash/debounce"
 
 const { Title } = Typography
 const { Search } = Input
@@ -39,21 +53,26 @@ const CouponPage: React.FC = () => {
   const { user, tokens } = useAuthStore()
   const [form] = Form.useForm()
 
-  const [coupons, setCoupons] = useState<Coupon[]>([])
+  const [allCoupons, setAllCoupons] = useState<Coupon[]>([])
+  const [displayedCoupons, setDisplayedCoupons] = useState<Coupon[]>([])
   const [pagination, setPagination] = useState<Pagination>({ totalRecord: 0, limit: 10, page: 1 })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null)
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchParams, setSearchParams] = useState({
+    code: "",
+    type: "",
+    isActive: undefined as boolean | undefined,
+  })
 
   const isAdmin = user?.roles === "admin"
 
   useEffect(() => {
-    fetchCoupons()
-  }, [tokens?.accessToken, pagination.page, pagination.limit])
+    fetchAllCoupons()
+  }, [tokens?.accessToken])
 
-  const fetchCoupons = async (search = "") => {
+  const fetchAllCoupons = async () => {
     try {
       if (!tokens?.accessToken) {
         message.error("Vui lòng đăng nhập để tiếp tục")
@@ -65,19 +84,59 @@ const CouponPage: React.FC = () => {
       const response = await axios.get("http://localhost:8889/api/v1/coupons", {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
         params: {
-          page: pagination.page,
-          limit: pagination.limit,
-          ...(search ? { code: search } : {}),
+          page: 1,
+          limit: 1000, // Lấy nhiều bản ghi để lọc phía client
         },
       })
 
-      setCoupons(response.data.data.coupons)
-      setPagination(response.data.data.pagination)
+      setAllCoupons(response.data.data.coupons)
+      filterCoupons(response.data.data.coupons, searchParams)
     } catch (error: any) {
       handleError(error, "Lỗi khi lấy danh sách coupon")
     } finally {
       setLoading(false)
     }
+  }
+
+  const filterCoupons = (coupons: Coupon[], filterParams: any = {}) => {
+    let filteredData = [...coupons]
+    
+    // Lọc theo mã coupon
+    if (filterParams.code) {
+      const searchTerm = filterParams.code.toLowerCase()
+      filteredData = filteredData.filter((coupon) => 
+        coupon.code.toLowerCase().includes(searchTerm)
+      )
+    }
+    
+    // Lọc theo loại coupon
+    if (filterParams.type) {
+      filteredData = filteredData.filter((coupon) => 
+        coupon.type === filterParams.type
+      )
+    }
+    
+    // Lọc theo trạng thái
+    if (filterParams.isActive !== undefined) {
+      if (filterParams.isActive === true) {
+        // Nếu tìm coupon đang hoạt động
+        filteredData = filteredData.filter((coupon) => 
+          isCouponActive(coupon)
+        )
+      } else {
+        // Nếu tìm coupon không hoạt động
+        filteredData = filteredData.filter((coupon) => 
+          !isCouponActive(coupon)
+        )
+      }
+    }
+    
+    // Cập nhật dữ liệu đã lọc
+    setDisplayedCoupons(filteredData)
+    setPagination({
+      ...pagination,
+      totalRecord: filteredData.length,
+    })
   }
 
   const handleError = (error: any, defaultMessage: string) => {
@@ -137,7 +196,7 @@ const CouponPage: React.FC = () => {
           })
 
           message.success("Xóa coupon thành công")
-          fetchCoupons(searchTerm)
+          fetchAllCoupons()
         } catch (error: any) {
           handleError(error, "Lỗi khi xóa coupon")
         } finally {
@@ -157,13 +216,13 @@ const CouponPage: React.FC = () => {
 
       setSaving(true)
       const values = await form.validateFields()
-      
+
       const payload = {
         ...values,
         startDate: values.dateRange[0].toISOString(),
         endDate: values.dateRange[1].toISOString(),
       }
-      
+
       // Remove dateRange from payload as it's not needed in the API
       delete payload.dateRange
 
@@ -182,7 +241,7 @@ const CouponPage: React.FC = () => {
       }
 
       setIsModalOpen(false)
-      fetchCoupons(searchTerm)
+      fetchAllCoupons()
     } catch (error: any) {
       handleError(error, "Lỗi khi xử lý coupon")
     } finally {
@@ -198,10 +257,37 @@ const CouponPage: React.FC = () => {
     })
   }
 
-  const handleSearch = (value: string) => {
-    setSearchTerm(value)
-    setPagination({ ...pagination, page: 1 })
-    fetchCoupons(value)
+  // Hàm xử lý tìm kiếm với debounce
+  const debouncedSearch = React.useCallback(
+    debounce((params: any) => {
+      filterCoupons(allCoupons, params)
+    }, 300),
+    [allCoupons]
+  )
+
+  // Clean up debounce on unmount
+  useEffect(() => {
+    return () => {
+      debouncedSearch.cancel()
+    }
+  }, [debouncedSearch])
+
+  // Tự động tìm kiếm khi searchParams thay đổi
+  useEffect(() => {
+    debouncedSearch(searchParams)
+  }, [searchParams, debouncedSearch])
+
+  const handleSearch = () => {
+    filterCoupons(allCoupons, searchParams)
+  }
+
+  const handleResetSearch = () => {
+    setSearchParams({
+      code: "",
+      type: "",
+      isActive: undefined,
+    })
+    filterCoupons(allCoupons, {})
   }
 
   const formatCurrency = (amount: number) => {
@@ -226,7 +312,11 @@ const CouponPage: React.FC = () => {
   }
 
   const isCouponActive = (coupon: Coupon) => {
-    return coupon.isActive && !isCouponExpired(coupon.endDate) && (coupon.usageLimit === 0 || coupon.usageCount < coupon.usageLimit)
+    return (
+      coupon.isActive &&
+      !isCouponExpired(coupon.endDate) &&
+      (coupon.usageLimit === 0 || coupon.usageCount < coupon.usageLimit)
+    )
   }
 
   const columns = [
@@ -255,9 +345,7 @@ const CouponPage: React.FC = () => {
       key: "value",
       width: 120,
       render: (value: number, record: Coupon) => (
-        <span className="font-medium">
-          {record.type === "percentage" ? `${value}%` : formatCurrency(value)}
-        </span>
+        <span className="font-medium">{record.type === "percentage" ? `${value}%` : formatCurrency(value)}</span>
       ),
     },
     {
@@ -358,27 +446,69 @@ const CouponPage: React.FC = () => {
         </Space>
       </div>
 
-      <div className="mb-6">
-        <Space>
-          <Search
-            placeholder="Tìm kiếm theo mã coupon"
-            allowClear
-            enterButton={
-              <Button type="primary" icon={<SearchOutlined />}>
-                Tìm kiếm
-              </Button>
-            }
-            size="middle"
-            onSearch={handleSearch}
-            className="w-80 rounded-md"
-          />
-        </Space>
+      <div className="mb-6 bg-white p-4 rounded-md shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div>
+            <Search
+              placeholder="Tìm kiếm theo mã coupon"
+              allowClear
+              value={searchParams.code}
+              onChange={(e) => setSearchParams({ ...searchParams, code: e.target.value })}
+              onSearch={(value) => {
+                setSearchParams({ ...searchParams, code: value })
+                handleSearch()
+              }}
+              className="w-full rounded-md"
+            />
+          </div>
+          <div>
+            <Select
+              placeholder="Lọc theo loại"
+              allowClear
+              value={searchParams.type || undefined}
+              onChange={(value) => setSearchParams({ ...searchParams, type: value })}
+              className="w-full rounded-md"
+              options={[
+                { value: "percentage", label: "Phần Trăm" },
+                { value: "fixed", label: "Giá Cố Định" },
+              ]}
+            />
+          </div>
+          <div>
+            <Select
+              placeholder="Lọc theo trạng thái"
+              allowClear
+              value={searchParams.isActive}
+              onChange={(value) => setSearchParams({ ...searchParams, isActive: value })}
+              className="w-full rounded-md"
+              options={[
+                { value: true, label: "Hoạt Động" },
+                { value: false, label: "Không Hoạt Động" },
+              ]}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <Space>
+            <Button
+              icon={<SearchOutlined />}
+              onClick={handleSearch}
+              type="primary"
+              className="rounded-md bg-blue-500 hover:bg-blue-600"
+            >
+              Tìm Kiếm
+            </Button>
+            <Button onClick={handleResetSearch} className="rounded-md">
+              Đặt Lại
+            </Button>
+          </Space>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
         <Table
           columns={columns}
-          dataSource={coupons}
+          dataSource={displayedCoupons}
           loading={loading}
           pagination={{
             current: pagination.page,
@@ -393,7 +523,9 @@ const CouponPage: React.FC = () => {
           rowKey="_id"
           bordered
           className="bg-white rounded-md shadow-sm"
-          rowClassName={(record) => `hover:bg-gray-50 transition-colors ${isCouponExpired(record.endDate) ? "bg-gray-50" : ""}`}
+          rowClassName={(record) =>
+            `hover:bg-gray-50 transition-colors ${isCouponExpired(record.endDate) ? "bg-gray-50" : ""}`
+          }
           scroll={{ x: "max-content" }}
         />
       </div>
@@ -490,4 +622,3 @@ const CouponPage: React.FC = () => {
 }
 
 export default CouponPage
-

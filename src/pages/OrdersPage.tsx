@@ -192,10 +192,10 @@ const OrdersPage: React.FC = () => {
     // Set form values from API response
     form.setFieldsValue({
       orderNumber: order.orderNumber,
+      shippingFee: order.shippingFee || 0,
+      tax: order.tax || 0,
+      discount: order.discount || 0,
       totalAmount: order.totalAmount,
-      shippingFee: order.shippingFee,
-      tax: order.tax,
-      discount: order.discount,
       paymentMethod: order.paymentMethod,
       paymentStatus: order.paymentStatus as "pending" | "paid" | "failed",
       status: order.status as "pending" | "processing" | "shipped" | "delivered" | "cancelled",
@@ -424,9 +424,17 @@ const OrdersPage: React.FC = () => {
                   <span className="text-sm text-gray-600">x{product.quantity}</span>
                 </div>
                 <div className="text-sm">
-                  <span className="text-gray-600">Giá: {formatCurrency(price)}</span>
-                  <br />
-                  <span className="text-blue-600 font-medium">Tổng: {formatCurrency(price * product.quantity)}</span>
+                  <div className="text-gray-600">
+                    {product.currentSalePrice ? (
+                      <>
+                        <span className="line-through mr-2">{formatCurrency(product.currentPrice)}</span>
+                        <span className="text-red-500">{formatCurrency(product.currentSalePrice)}</span>
+                      </>
+                    ) : (
+                      <span>{formatCurrency(product.currentPrice)}</span>
+                    )}
+                  </div>
+                  <span className="text-blue-600 font-medium">Tổng: {formatCurrency((product.currentSalePrice || product.currentPrice) * product.quantity)}</span>
                 </div>
               </div>
             )
@@ -751,10 +759,16 @@ const OrdersPage: React.FC = () => {
                   <div key={p.productId} className="flex items-center justify-between border-b pb-2">
                     <div className="flex-1">
                       <span className="font-medium">{p.name}</span>
-                      <div className="text-sm text-gray-500">{formatCurrency(p.price)}</div>
-                    {p.salePrice && p.price !== p.salePrice && (
-                      <div className="text-sm text-red-500 line-through">{formatCurrency(p.salePrice)}</div>
-                    )}
+                      <div className="text-sm">
+                        {p.salePrice ? (
+                          <>
+                            <span className="text-gray-500 line-through mr-2">{formatCurrency(p.price)}</span>
+                            <span className="text-red-500">{formatCurrency(p.salePrice)}</span>
+                          </>
+                        ) : (
+                          <span className="text-gray-600">{formatCurrency(p.price)}</span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center">
                       <span className="mr-2">Số lượng:</span>

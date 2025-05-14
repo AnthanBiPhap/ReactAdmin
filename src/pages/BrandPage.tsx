@@ -1,15 +1,16 @@
 "use client"
 
-import type React from "react"
+import React from "react"
 import { useState, useEffect } from "react"
-import { Table, Button, Space, Modal, Form, Input, message, Typography, Input as AntInput } from "antd"
+import { Table, Button, Space, Modal, Form, Input, message, Typography } from "antd"
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from "@ant-design/icons"
 import axios from "axios"
 import { useAuthStore } from "../stores/useAuthStore"
 import { useNavigate } from "react-router-dom"
+import debounce from "lodash/debounce"
 
 const { Title } = Typography
-const { Search } = AntInput
+
 
 interface Brand {
   _id: string
@@ -38,38 +39,96 @@ const BrandPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [allBrands, setAllBrands] = useState<Brand[]>([])
 
   const isAdmin = user?.roles === "admin"
 
-  useEffect(() => {
-    fetchBrands()
-  }, [tokens?.accessToken, pagination.page, pagination.limit])
+  // Debounced search
+  const debouncedSearch = React.useCallback(
+    debounce((search: string) => {
+      setPagination(prev => ({ ...prev, page: 1 }))
+      loadBrands(search)
+    }, 300),
+    []
+  )
 
-  const fetchBrands = async (search = "") => {
+  // Clean up debounce on unmount
+  useEffect(() => {
+    return () => {
+      debouncedSearch.cancel()
+    }
+  }, [debouncedSearch])
+
+  // Initial load
+  useEffect(() => {
+    loadBrands()
+  }, [tokens?.accessToken])
+
+  // Handle search input change
+  useEffect(() => {
+    debouncedSearch(searchTerm)
+  }, [searchTerm, debouncedSearch])
+
+  const fetchAllBrands = async () => {
     try {
       if (!tokens?.accessToken) {
         message.error("Vui lòng đăng nhập để tiếp tục")
         navigate("/login")
-        return
+        return []
       }
 
-      setLoading(true)
       const response = await axios.get("http://localhost:8889/api/v1/brands", {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
         params: {
-          page: pagination.page,
-          limit: pagination.limit,
-          ...(search ? { brand_name: search } : {}),
+          page: 1,
+          limit: 1000, // Lấy tất cả bản ghi
         },
       })
 
-      setBrands(response.data.data.brands || [])
-      setPagination({
-        ...pagination,
-        totalRecord: response.data.data.pagination?.totalRecord || 0,
-      })
+      return response.data.data.brands || []
     } catch (error: any) {
       handleError(error, "Lỗi khi lấy danh sách thương hiệu")
+      return []
+    }
+  }
+
+  const filterBrands = (brands: Brand[], search: string) => {
+    if (!search) return brands
+    
+    const searchLower = search.toLowerCase()
+    return brands.filter(brand => 
+      brand.brand_name.toLowerCase().includes(searchLower) ||
+      (brand.description && brand.description.toLowerCase().includes(searchLower)) ||
+      (brand.slug && brand.slug.toLowerCase().includes(searchLower))
+    )
+  }
+
+  const loadBrands = async (search = "") => {
+    try {
+      setLoading(true)
+      
+      // Nếu chưa có dữ liệu hoặc đang tìm kiếm, lấy lại dữ liệu từ API
+      if (allBrands.length === 0 || search) {
+        const data = await fetchAllBrands()
+        setAllBrands(data)
+        
+        const filtered = filterBrands(data, search)
+        setBrands(filtered)
+        setPagination(prev => ({
+          ...prev,
+          totalRecord: filtered.length
+        }))
+      } else {
+        // Nếu đã có dữ liệu, chỉ lọc lại
+        const filtered = filterBrands(allBrands, search)
+        setBrands(filtered)
+        setPagination(prev => ({
+          ...prev,
+          totalRecord: filtered.length
+        }))
+      }
+    } catch (error) {
+      console.error("Error loading brands:", error)
     } finally {
       setLoading(false)
     }
@@ -102,7 +161,7 @@ const BrandPage: React.FC = () => {
     setIsModalOpen(true)
   }
 
-  const handleDeleteBrand = (brandId: string) => {
+  const handleDeleteBrand = async (brandId: string) => {
     Modal.confirm({
       title: "Xác nhận xóa",
       content: "Bạn có chắc chắn muốn xóa thương hiệu này?",
@@ -123,7 +182,9 @@ const BrandPage: React.FC = () => {
           })
 
           message.success("Xóa thương hiệu thành công")
-          fetchBrands(searchTerm)
+          // Làm mới dữ liệu
+          setAllBrands([])
+          loadBrands(searchTerm)
         } catch (error: any) {
           handleError(error, "Lỗi khi xóa thương hiệu")
         } finally {
@@ -157,7 +218,9 @@ const BrandPage: React.FC = () => {
         message.success("Tạo mới thương hiệu thành công")
       }
 
-      fetchBrands(searchTerm)
+      // Làm mới dữ liệu sau khi thêm/cập nhật
+      setAllBrands([])
+      loadBrands(searchTerm)
       setIsModalOpen(false)
     } catch (error: any) {
       handleError(error, "Lỗi khi xử lý thương hiệu")
@@ -174,11 +237,7 @@ const BrandPage: React.FC = () => {
     })
   }
 
-  const handleSearch = (value: string) => {
-    setSearchTerm(value)
-    setPagination({ ...pagination, page: 1 })
-    fetchBrands(value)
-  }
+
 
   const columns = [
     {
@@ -252,16 +311,12 @@ const BrandPage: React.FC = () => {
 
       <div className="mb-6">
         <Space>
-          <Search
-            placeholder="Tìm kiếm theo tên thương hiệu"
+          <Input
+            placeholder="Tìm kiếm theo tên, mô tả hoặc slug"
+            prefix={<SearchOutlined />}
             allowClear
-            enterButton={
-              <Button type="primary" icon={<SearchOutlined />}>
-                Tìm kiếm
-              </Button>
-            }
-            size="middle"
-            onSearch={handleSearch}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="w-80 rounded-md"
           />
         </Space>
@@ -278,7 +333,7 @@ const BrandPage: React.FC = () => {
             total: pagination.totalRecord,
             showSizeChanger: true,
             pageSizeOptions: ["10", "20", "50"],
-            showTotal: (total) => <span className="ml-0">Total {total} brands</span>,
+            showTotal: (total) => <span className="ml-0">Tổng cộng {total} thương hiệu</span>,
             className: "ant-table-pagination",
           }}
           onChange={handleTableChange}

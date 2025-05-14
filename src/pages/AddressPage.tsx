@@ -1,12 +1,12 @@
 "use client"
 
-import type React from "react"
+import React from "react"
 import { useState, useEffect } from "react"
 import { Table, Button, Space, message, Input, Select, Modal, Form, Checkbox, Typography } from "antd"
 import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons"
 import axios from "axios"
 import { useAuthStore } from "../stores/useAuthStore"
-
+import debounce from "lodash/debounce"
 const { Option } = Select
 const { Title } = Typography
 
@@ -75,7 +75,7 @@ const AddressPage: React.FC = () => {
     }
   }
 
-  const fetchAddresses = async (params = {}) => {
+  const fetchAddresses = async (filterParams: any = {}) => {
     try {
       if (!tokens?.accessToken) {
         message.error("Vui lòng đăng nhập để tiếp tục")
@@ -83,19 +83,48 @@ const AddressPage: React.FC = () => {
       }
 
       setLoading(true)
+      
+      // Lấy tất cả dữ liệu từ API
       const response = await axios.get("http://localhost:8889/api/v1/addresses", {
         params: {
-          ...params,
-          page: pagination.page,
-          limit: pagination.limit,
+          page: 1,
+          limit: 1000, // Lấy nhiều bản ghi để lọc phía client
         },
         headers: {
           Authorization: `Bearer ${tokens.accessToken}`,
         },
       })
 
-      setAddresses(response.data.data.addresses)
-      setPagination(response.data.data.pagination)
+      // Lọc dữ liệu phía client
+      let filteredData = response.data.data.addresses
+      
+      if (filterParams.fullName) {
+        const searchTerm = filterParams.fullName.toLowerCase()
+        filteredData = filteredData.filter((address: Address) => 
+          address.fullName.toLowerCase().includes(searchTerm)
+        )
+      }
+      
+      if (filterParams.city) {
+        const searchTerm = filterParams.city.toLowerCase()
+        filteredData = filteredData.filter((address: Address) => 
+          address.city.toLowerCase().includes(searchTerm)
+        )
+      }
+      
+      if (filterParams.phoneNumber) {
+        const searchTerm = filterParams.phoneNumber
+        filteredData = filteredData.filter((address: Address) => 
+          address.phoneNumber.includes(searchTerm)
+        )
+      }
+      
+      // Cập nhật dữ liệu đã lọc
+      setAddresses(filteredData)
+      setPagination({
+        ...pagination,
+        totalRecord: filteredData.length,
+      })
     } catch (error: any) {
       if (error.response?.status === 401) {
         message.error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại")
@@ -207,8 +236,29 @@ const AddressPage: React.FC = () => {
     setIsModalOpen(true)
   }
 
+  // Hàm xử lý tìm kiếm với debounce
+  const debouncedSearch = React.useCallback(
+    debounce((params: any) => {
+      setPagination(prev => ({ ...prev, page: 1 }))
+      fetchAddresses(params)
+    }, 300),
+    []
+  )
+
+  // Clean up debounce on unmount
+  useEffect(() => {
+    return () => {
+      debouncedSearch.cancel()
+    }
+  }, [debouncedSearch])
+
+  // Tự động tìm kiếm khi searchParams thay đổi
+  useEffect(() => {
+    debouncedSearch(searchParams)
+  }, [searchParams, debouncedSearch])
+
   const handleSearch = () => {
-    setPagination({ ...pagination, page: 1 })
+    setPagination(prev => ({ ...prev, page: 1 }))
     fetchAddresses(searchParams)
   }
 
@@ -353,7 +403,11 @@ const AddressPage: React.FC = () => {
           <Input
             placeholder="Search by Full Name"
             value={searchParams.fullName}
-            onChange={(e) => setSearchParams({ ...searchParams, fullName: e.target.value })}
+            onChange={(e) => {
+              const newParams = { ...searchParams, fullName: e.target.value }
+              setSearchParams(newParams)
+              // Không cần gọi debouncedSearch ở đây vì đã có useEffect tự động gọi
+            }}
             allowClear
             className="rounded-md w-48"
             prefix={<SearchOutlined />}
@@ -361,7 +415,11 @@ const AddressPage: React.FC = () => {
           <Input
             placeholder="Search by City"
             value={searchParams.city}
-            onChange={(e) => setSearchParams({ ...searchParams, city: e.target.value })}
+            onChange={(e) => {
+              const newParams = { ...searchParams, city: e.target.value }
+              setSearchParams(newParams)
+              // Không cần gọi debouncedSearch ở đây vì đã có useEffect tự động gọi
+            }}
             allowClear
             className="rounded-md w-48"
             prefix={<SearchOutlined />}
@@ -369,7 +427,11 @@ const AddressPage: React.FC = () => {
           <Input
             placeholder="Search by Phone Number"
             value={searchParams.phoneNumber}
-            onChange={(e) => setSearchParams({ ...searchParams, phoneNumber: e.target.value })}
+            onChange={(e) => {
+              const newParams = { ...searchParams, phoneNumber: e.target.value }
+              setSearchParams(newParams)
+              // Không cần gọi debouncedSearch ở đây vì đã có useEffect tự động gọi
+            }}
             allowClear
             className="rounded-md w-48"
             prefix={<SearchOutlined />}
