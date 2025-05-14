@@ -58,28 +58,28 @@ function getItem(
 const items: CustomMenuItem[] = [
   getItem("Dashboard", "", <PieChartOutlined />),
   getItem("User", "users", <UserOutlined />),
-  // getItem("Activity Log", "activitylogs", <FileOutlined />),
-  getItem("Address", "addresses", <EnvironmentOutlined />),
   getItem("Brand", "brands", <StarOutlined />),
   getItem("Cart", "carts", <ShoppingCartOutlined />),
   getItem("Category", "categories", <FolderOutlined />),
-  getItem("Coupon", "coupons", <TagOutlined />),
-  getItem("Location", "locations", <EnvironmentOutlined />),
-  getItem("Notifications", "notifications", <BellOutlined />),
+  getItem("Products", "products", <ShoppingCartOutlined />),
   getItem("Orders", "orders", <ShoppingCartOutlined />),
   getItem("Payment Methods", "payment-methods", <BankOutlined />),
   getItem("Payments", "payments", <DollarOutlined />),
+  // getItem("Activity Log", "activitylogs", <FileOutlined />),
+  getItem("Address", "addresses", <EnvironmentOutlined />),
+  getItem("Coupon", "coupons", <TagOutlined />),
+  getItem("Location", "locations", <EnvironmentOutlined />),
+  getItem("Notifications", "notifications", <BellOutlined />),
   // getItem("Product Attributes", "product-attributes", <TagOutlined />),
-  getItem("Products", "products", <ShoppingCartOutlined />),
   // getItem("SEO", "seo", <StarOutlined />),
-  getItem("Settings", "settings", <SettingOutlined />),
   getItem("Shipping", "shippings", <CarOutlined />),
   getItem("Tech News", "tech-news", <FileTextOutlined />),
   getItem("Vendors", "vendors", <UserOutlined />),
   // getItem("Wishlists", "wishlists", <HeartOutlined />),
   getItem("Product Inventories", "product-inventories", <WarehouseOutlined />),
-  getItem("Review", "reviews", <StarOutlined />),
   getItem("Product Variants", "product-variants", <SwapOutlined />),
+  getItem("Review", "reviews", <StarOutlined />),
+  getItem("Settings", "settings", <SettingOutlined />),
 ]
 
 // Helper function to get breadcrumb items based on current path
@@ -129,23 +129,27 @@ const DefaultLayout: React.FC = () => {
         />
       </Sider>
       <Layout>
-        <Header className="flex items-center justify-between p-0 px-4 bg-white shadow-sm">
+      <Header style={{ background: 'linear-gradient(to right,rgb(44, 113, 233),rgb(68, 116, 220))' }} className="flex items-center justify-between p-0 px-6 text-white shadow-lg">
           <div className="flex items-center">
             {React.createElement(collapsed ? MenuUnfoldOutlined : MenuFoldOutlined, {
               className: "text-lg cursor-pointer mr-4",
               onClick: () => setCollapsed(!collapsed),
             })}
-            <Input prefix={<SearchOutlined />} placeholder="Search..." className="w-64 rounded-md" />
+            <Input 
+              prefix={<SearchOutlined className="text-indigo-600" />} 
+              placeholder="Search..." 
+              className="w-64 rounded-md border-none shadow-sm bg-white/90 hover:bg-white transition-colors" 
+            />
           </div>
           <Space>
-            <Tooltip title="Help">
-              <QuestionCircleOutlined className="text-gray-600 text-base cursor-pointer" />
+            {/* <Tooltip title="Help">
+              <QuestionCircleOutlined className="text-yellow-400 hover:text-yellow-300 text-lg cursor-pointer transition-colors" />
             </Tooltip>
             <Tooltip title="Notifications">
-              <Badge count={5} size="small">
-                <NotificationOutlined className="text-gray-600 text-base cursor-pointer" />
+              <Badge count={5} size="small" className="[&>.ant-badge-count]:bg-yellow-400 [&>.ant-badge-count]:text-gray-800">
+                <NotificationOutlined className="text-yellow-400 hover:text-yellow-300 text-lg cursor-pointer transition-colors" />
               </Badge>
-            </Tooltip>
+            </Tooltip> */}
             <UserInfo />
           </Space>
         </Header>

@@ -1,48 +1,57 @@
-
 import { 
+  Layout,
+  Menu,
   Card, 
   Row, 
   Col, 
+  Avatar, 
   Typography, 
-  Menu, 
-  Layout, 
-  Breadcrumb, 
-  Divider, 
-  Statistic, 
-  Button, 
-  Space,
-  Table,
+  Button,
+  Dropdown,
+  Segmented,
+  Select,
   Progress,
-  Badge,
-  Avatar,
   List,
+  Table,
+  DatePicker,
+  Breadcrumb,
+  Badge,
   Tag,
-  message
+  message,
+  Space
 } from 'antd';
+
 import { 
-  Link 
-} from 'react-router-dom';
-import { 
-  UserOutlined, 
   ShoppingCartOutlined, 
   ProductOutlined, 
-  BarChartOutlined,
-  SettingOutlined,
-  DollarOutlined,
+  UserOutlined,
+  AppstoreOutlined, 
   TagOutlined,
-  AppstoreOutlined,
-  ThunderboltOutlined,
-  ArrowUpOutlined,
-  CreditCardOutlined,
+  CreditCardOutlined, 
+  AlipayCircleOutlined, 
   BankOutlined,
-  AlipayCircleOutlined
-} from '@ant-design/icons';
-import axios from 'axios';
-import { useState, useEffect } from 'react';
-import { useAuthStore } from '../stores/useAuthStore';
+  DollarOutlined,
+  DownOutlined,
+  SyncOutlined,
+  DownloadOutlined,
+  RiseOutlined,
+  FallOutlined,
 
+  TeamOutlined,
+  ThunderboltOutlined,
+  BarChartOutlined,
+  SettingOutlined
+} from '@ant-design/icons';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { Link } from 'react-router-dom';
+import { useAuthStore } from '../stores/useAuthStore';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
+import dayjs from 'dayjs';
+
+const { Header, Content, Sider, Footer } = Layout;
 const { Title, Text } = Typography;
-const { Header, Content, Footer, Sider } = Layout;
+const { Option } = Select;
 
 interface DashboardStats {
   totalOrders: number;
@@ -59,6 +68,10 @@ interface DashboardStats {
   productChange: number;
   userChange: number;
   revenueChange: number;
+  salesData: Array<{ date: string; sales: number }>;
+  revenueData: Array<{ date: string; revenue: number }>;
+  categoryData: Array<{ name: string; value: number }>;
+  trafficData: Array<{ date: string; users: number }>;
 }
 
 interface Order {
@@ -105,11 +118,18 @@ const DashboardPage: React.FC = () => {
     orderChange: 0,
     productChange: 0,
     userChange: 0,
-    revenueChange: 0
+    revenueChange: 0,
+    salesData: [],
+    revenueData: [],
+    categoryData: [],
+    trafficData: []
   });
-  const { tokens } = useAuthStore();
+  
+  const [timeRange, setTimeRange] = useState<string>('week');
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  const { tokens } = useAuthStore();
+
 
   useEffect(() => {
     if (tokens?.accessToken) {
@@ -173,6 +193,120 @@ const DashboardPage: React.FC = () => {
       const categoriesData = responses[4].data.data?.categories || [];
       const couponsData = responses[5].data.data?.coupons || [];
       const paymentsData = responses[6].data.data?.payments || [];
+
+      // Process sales data from orders
+      const now = new Date();
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const date = new Date(now);
+        date.setDate(now.getDate() - (6 - i));
+        return date.toISOString().split('T')[0];
+      });
+
+      // Filter orders based on selected time range
+      let filteredOrders = [...ordersData];
+      if (timeRange === 'day') {
+        const today = new Date().toISOString().split('T')[0];
+        filteredOrders = ordersData.filter((order: Order) => 
+          new Date(order.createdAt).toISOString().split('T')[0] === today
+        );
+      } else if (timeRange === 'week') {
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        filteredOrders = ordersData.filter((order: Order) => 
+          new Date(order.createdAt) >= oneWeekAgo
+        );
+      } else if (timeRange === 'month') {
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        filteredOrders = ordersData.filter((order: Order) => 
+          new Date(order.createdAt) >= oneMonthAgo
+        );
+      }
+
+      // Count orders by date for selected time range
+      const salesByDate = filteredOrders.reduce((acc: Record<string, number>, order: Order) => {
+        const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
+        acc[orderDate] = (acc[orderDate] || 0) + 1;
+        return acc;
+      }, {});
+
+      // Create sales data for chart
+      const salesData = last7Days.map(date => ({
+        date,
+        sales: salesByDate[date] || 0
+      }));
+
+      // Process revenue data from orders (based on time range)
+      const monthsToShow = timeRange === 'month' ? 12 : 6; // Show 6 months for day/week view
+      const last12Months = Array.from({ length: monthsToShow }, (_, i) => {
+        const date = new Date(now);
+        date.setMonth(now.getMonth() - (11 - i));
+        return {
+          month: date.getMonth(),
+          year: date.getFullYear(),
+          key: `${date.getFullYear()}-${date.getMonth()}`
+        };
+      });
+
+      const revenueByMonth = filteredOrders.reduce((acc: Record<string, number>, order: Order) => {
+        const orderDate = new Date(order.createdAt);
+        const monthKey = `${orderDate.getFullYear()}-${orderDate.getMonth()}`;
+        acc[monthKey] = (acc[monthKey] || 0) + (order.totalAmount || 0);
+        return acc;
+      }, {});
+
+      const revenueData = last12Months.map(({ month, year, key }) => ({
+        date: new Date(year, month, 1).toLocaleString('default', { month: 'short' }),
+        revenue: revenueByMonth[key] || 0
+      }));
+
+      // Define interface for category data
+      interface CategoryData {
+        name: string;
+        value: number;
+      }
+
+
+      // Calculate category usage count from products
+      const categoryUsage = productsData.reduce((acc: Record<string, number>, product: any) => {
+        // Check both possible category name fields
+        const categoryName = product.category?.category_name || 
+                           product.category?.name || 
+                           'Không xác định';
+        
+        // Count each occurrence of the category
+        acc[categoryName] = (acc[categoryName] || 0) + 1;
+        return acc;
+      }, {});
+
+      // Convert to array, sort by count (descending) and take top 5
+      const sortedCategories: CategoryData[] = Object.entries(categoryUsage)
+        .map(([name, count]) => ({
+          name,
+          value: count as number
+        }))
+        .sort((a: CategoryData, b: CategoryData) => b.value - a.value);
+
+      const topCategories = sortedCategories.slice(0, 5);
+      const otherCategories = sortedCategories.slice(5);
+      
+      // Calculate total for 'Other' category
+      const otherTotal = otherCategories.reduce((sum: number, cat: CategoryData) => sum + cat.value, 0);
+
+      // Combine top 5 with 'Other' category if needed
+      const categoryData: CategoryData[] = [
+        ...topCategories,
+        ...(otherTotal > 0 ? [{
+          name: 'Khác',
+          value: otherTotal
+        }] : [])
+      ];
+
+      // Get traffic data for last 30 days (sample data - replace with real API if available)
+      const trafficData = Array.from({ length: 30 }, (_, i) => ({
+        date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        users: Math.floor(Math.random() * 1000) + 100
+      }));
 
       // Calculate statistics
       const totalOrders = ordersData.length;
@@ -304,7 +438,11 @@ const DashboardPage: React.FC = () => {
         orderChange,
         productChange,
         userChange,
-        revenueChange
+        revenueChange,
+        salesData,
+        revenueData,
+        categoryData,
+        trafficData
       });
 
       // Only show success message if data actually changed
@@ -389,19 +527,28 @@ const DashboardPage: React.FC = () => {
     },
   ];
 
+  // Chart colors
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+
   return (
-    <Layout className="min-h-screen">
+    <Layout className="min-h-screen bg-gray-50">
       <Sider 
         collapsible 
         collapsed={collapsed} 
         onCollapse={(value) => setCollapsed(value)}
         width={250}
         theme="light"
+        className="shadow-lg"
       >
-        <div className="p-4 flex items-center justify-center">
-          <Title level={4} className="m-0 text-blue-600">
-            E-Commerce Admin
-          </Title>
+        <div className="p-4 flex items-center justify-center bg-white">
+          <div className="flex items-center">
+            <div className="w-8 h-8 bg-blue-600 rounded-md flex items-center justify-center mr-2">
+              <ThunderboltOutlined className="text-white" />
+            </div>
+            <Title level={4} className="m-0 text-blue-600">
+              {collapsed ? 'EA' : 'E-Commerce Analytics'}
+            </Title>
+          </div>
         </div>
         <Menu
         theme="light"
@@ -452,130 +599,335 @@ const DashboardPage: React.FC = () => {
       />
       </Sider>
       <Layout>
-        <Header className="bg-white shadow-sm p-0">
+        <Header className="shadow-sm p-0" style={{ backgroundColor: '#5f9ea0' }}>
           <div className="flex items-center justify-between h-16 px-6">
             <Breadcrumb
               items={[
                 {
-                  title: <Link to="/dashboard">Trang chủ</Link>
+                  title: <Link to="/dashboard" className="text-gray-600 hover:text-blue-600">Trang chủ</Link>
                 },
                 {
-                  title: 'Dashboard'
+                  title: <span className="text-blue-600">Analytics</span>
                 }
               ]}
             />
-            <div className="flex items-center">
-              <Avatar 
-                size="default" 
-                icon={<UserOutlined />} 
-                className="bg-blue-500"
-              />
-              <Text className="ml-2">Admin</Text>
+            <div className="flex items-center space-x-4">
+            
+              <Dropdown
+                menu={{
+                  items: [
+                    { key: '1', label: 'Hồ sơ' },
+                    { key: '2', label: 'Cài đặt' },
+                    { key: '3', label: 'Đăng xuất' },
+                  ],
+                }}
+                placement="bottomRight"
+              >
+                <div className="flex items-center cursor-pointer">
+                  <Avatar 
+                    size="default" 
+                    icon={<UserOutlined />} 
+                    className="bg-blue-500"
+                  />
+                  <Text className="ml-2 mr-1">Admin</Text>
+                  <DownOutlined className="text-xs" />
+                </div>
+              </Dropdown>
             </div>
           </div>
         </Header>
         <Content className="p-6 bg-gray-50">
-          <Title level={3} className="mb-6">Tổng quan hệ thống</Title>
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <Title level={3} className="mb-1">Bảng điều khiển</Title>
+              <Text type="secondary">Tổng quan về hiệu suất kinh doanh</Text>
+            </div>
+            <div className="flex space-x-2">
+              <Button type="text" icon={<DownloadOutlined />}>Báo cáo</Button>
+              <Button type="primary">Tạo báo cáo mới</Button>
+            </div>
+          </div>
           
           <Row gutter={[16, 16]}>
-            <Col span={6}>
-              <Card>
-                <Statistic
-                  title="Tổng đơn hàng"
-                  value={stats.totalOrders}
-                  valueStyle={{ color: '#3f8600' }}
-                  prefix={<ShoppingCartOutlined style={{ color: '#3f8600' }} />}
-                  formatter={(value) => {
-                    const change = stats.orderChange;
-                    const changeText = change >= 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`;
-                    return (
-                      <>
-                        {value}
-                        <div style={{ fontSize: '12px', marginTop: '4px' }}>
-                          <ArrowUpOutlined style={{ color: change >= 0 ? '#52c41a' : '#ff4d4f' }} /> {changeText}
-                        </div>
-                      </>
-                    );
-                  }}
-                />
+            <Col xs={24} sm={12} lg={6}>
+              <Card className="h-full border-l-4 border-blue-500 hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Text type="secondary" className="text-sm">Tổng đơn hàng</Text>
+                    <Title level={3} className="my-1">{stats.totalOrders}</Title>
+                    <div className="flex items-center">
+                      {stats.orderChange >= 0 ? (
+                        <RiseOutlined className="text-green-500 mr-1" />
+                      ) : (
+                        <FallOutlined className="text-red-500 mr-1" />
+                      )}
+                      <Text type={stats.orderChange >= 0 ? 'success' : 'danger'}>
+                        {stats.orderChange >= 0 ? '+' : ''}{stats.orderChange.toFixed(1)}% so với tháng trước
+                      </Text>
+                    </div>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                    <ShoppingCartOutlined className="text-blue-600 text-xl" />
+                  </div>
+                </div>
               </Card>
             </Col>
             <Col span={6}>
               <Card>
-                <Statistic
-                  title="Tổng sản phẩm"
-                  value={stats.totalProducts}
-                  valueStyle={{ color: '#cf1322' }}
-                  prefix={<ProductOutlined style={{ color: '#cf1322' }} />}
-                  formatter={(value) => {
-                    const change = stats.productChange;
-                    const changeText = change >= 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`;
-                    return (
-                      <>
-                        {value}
-                        <div style={{ fontSize: '12px', marginTop: '4px' }}>
-                          <ArrowUpOutlined style={{ color: change >= 0 ? '#52c41a' : '#ff4d4f' }} /> {changeText}
-                        </div>
-                      </>
-                    );
-                  }}
-                />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Text type="secondary" className="text-sm">Tổng sản phẩm</Text>
+                    <Title level={3} className="my-1">{stats.totalProducts}</Title>
+                    <div className="flex items-center">
+                      {stats.productChange >= 0 ? (
+                        <RiseOutlined className="text-green-500 mr-1" />
+                      ) : (
+                        <FallOutlined className="text-red-500 mr-1" />
+                      )}
+                      <Text type={stats.productChange >= 0 ? 'success' : 'danger'}>
+                        {stats.productChange >= 0 ? '+' : ''}{stats.productChange.toFixed(1)}% so với tháng trước
+                      </Text>
+                    </div>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                    <ProductOutlined className="text-green-600 text-xl" />
+                  </div>
+                </div>
               </Card>
             </Col>
             <Col span={6}>
               <Card>
-                <Statistic
-                  title="Tổng người dùng"
-                  value={stats.totalUsers}
-                  valueStyle={{ color: '#1890ff' }}
-                  prefix={<UserOutlined style={{ color: '#1890ff' }} />}
-                  formatter={(value) => {
-                    const change = stats.userChange;
-                    const changeText = change >= 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`;
-                    return (
-                      <>
-                        {value}
-                        <div style={{ fontSize: '12px', marginTop: '4px' }}>
-                          <ArrowUpOutlined style={{ color: change >= 0 ? '#52c41a' : '#ff4d4f' }} /> {changeText}
-                        </div>
-                      </>
-                    );
-                  }}
-                />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Text type="secondary" className="text-sm">Tổng người dùng</Text>
+                    <Title level={3} className="my-1">{stats.totalUsers}</Title>
+                    <div className="flex items-center">
+                      {stats.userChange >= 0 ? (
+                        <RiseOutlined className="text-green-500 mr-1" />
+                      ) : (
+                        <FallOutlined className="text-red-500 mr-1" />
+                      )}
+                      <Text type={stats.userChange >= 0 ? 'success' : 'danger'}>
+                        {stats.userChange >= 0 ? '+' : ''}{stats.userChange.toFixed(1)}% so với tháng trước
+                      </Text>
+                    </div>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
+                    <TeamOutlined className="text-orange-600 text-xl" />
+                  </div>
+                </div>
               </Card>
             </Col>
             <Col span={6}>
               <Card>
-                <Statistic
-                  title="Doanh thu"
-                  value={stats.totalRevenue.toLocaleString()}
-                  valueStyle={{ color: '#faad14' }}
-                  prefix={<DollarOutlined style={{ color: '#faad14' }} />}
-                  formatter={(value) => {
-                    const change = stats.revenueChange;
-                    const changeText = change >= 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`;
-                    return (
-                      <>
-                        {value}
-                        <div style={{ fontSize: '12px', marginTop: '4px' }}>
-                          <ArrowUpOutlined style={{ color: change >= 0 ? '#52c41a' : '#ff4d4f' }} /> {changeText}
-                        </div>
-                      </>
-                    );
-                  }}
-                />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Text type="secondary" className="text-sm">Doanh thu</Text>
+                    <Title level={3} className="my-1">{stats.totalRevenue.toLocaleString()} VND</Title>
+                    <div className="flex items-center">
+                      {stats.revenueChange >= 0 ? (
+                        <RiseOutlined className="text-green-500 mr-1" />
+                      ) : (
+                        <FallOutlined className="text-red-500 mr-1" />
+                      )}
+                      <Text type={stats.revenueChange >= 0 ? 'success' : 'danger'}>
+                        {stats.revenueChange >= 0 ? '+' : ''}{stats.revenueChange.toFixed(1)}% so với tháng trước
+                      </Text>
+                    </div>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                    <DollarOutlined className="text-purple-600 text-xl" />
+                  </div>
+                </div>
               </Card>
             </Col>
           </Row>
 
-          <Divider className="my-6" />
+          <Row gutter={[24, 24]} className="mt-6">
+            <Col xs={24} lg={16}>
+              <Card 
+                title="Biểu đồ doanh số bán hàng" 
+                className="shadow-sm"
+                extra={
+                  <div className="flex items-center space-x-2">
+                    <Segmented
+                      options={['Ngày', 'Tuần', 'Tháng']}
+                      value={timeRange === 'day' ? 'Ngày' : timeRange === 'week' ? 'Tuần' : 'Tháng'}
+                      onChange={(value) => {
+                        const newRange = value === 'Ngày' ? 'day' : value === 'Tuần' ? 'week' : 'month';
+                        setTimeRange(newRange);
+                        fetchDashboardStats();
+                      }}
+                      className="ml-4"
+                    />
+                    <Button type="text" icon={<DownloadOutlined />} />
+                  </div>
+                }
+              >
+                <div style={{ height: 300 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={stats.salesData}
+                      margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#1890ff" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#1890ff" stopOpacity={0.1}/>
+                        </linearGradient>
+                      </defs>
+                      <XAxis 
+                        dataKey="date" 
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis />
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <RechartsTooltip />
+                      <Area 
+                        type="monotone" 
+                        dataKey="sales" 
+                        stroke="#1890ff" 
+                        fillOpacity={1} 
+                        fill="url(#colorSales)" 
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            </Col>
+            <Col xs={24} lg={8}>
+              <Card 
+                title="Phân bổ danh mục" 
+                className="shadow-sm h-full"
+                extra={
+                  <Button type="text" icon={<DownloadOutlined />} />
+                }
+              >
+                <div style={{ height: 300 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={stats.categoryData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        paddingAngle={5}
+                        dataKey="value"
+                        label
+                      >
+                        {stats.categoryData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            </Col>
+          </Row>
 
-          <Row gutter={[24, 24]}>
+          <Row gutter={[24, 24]} className="mt-6">
+            <Col xs={24} lg={16}>
+              <Card 
+                title="Lịch sử giao dịch gần đây"
+                className="shadow-sm"
+                extra={<Link to="/orders">Xem tất cả</Link>}
+              >
+                <Table 
+                  columns={columns} 
+                  dataSource={stats.recentOrders} 
+                  pagination={false}
+                  size="middle"
+                  scroll={{ x: true }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} lg={8}>
+              <Row gutter={[0, 24]}>
+                <Col span={24}>
+                  <Card 
+                    title="Lưu lượng truy cập" 
+                    className="shadow-sm"
+                    extra={<Text strong>+12%</Text>}
+                  >
+                    <div style={{ height: 100 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={stats.trafficData}>
+                          <defs>
+                            <linearGradient id="colorTraffic" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                              <stop offset="95%" stopColor="#8884d8" stopOpacity={0.1}/>
+                            </linearGradient>
+                          </defs>
+                          <Area 
+                            type="monotone" 
+                            dataKey="users" 
+                            stroke="#8884d8" 
+                            fillOpacity={1} 
+                            fill="url(#colorTraffic)" 
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex justify-between mt-4">
+                      <div>
+                        <Text type="secondary">Tổng lượt xem</Text>
+                        <div className="text-lg font-semibold">12,456</div>
+                      </div>
+                      <div>
+                        <Text type="secondary">Tỷ lệ thoát</Text>
+                        <div className="text-lg font-semibold">23%</div>
+                      </div>
+                      <div>
+                        <Text type="secondary">Thời gian TB</Text>
+                        <div className="text-lg font-semibold">2m 30s</div>
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
+                <Col span={24}>
+                  <Card 
+                    title="Sản phẩm bán chạy" 
+                    className="shadow-sm"
+                    extra={<Link to="/products">Xem tất cả</Link>}
+                  >
+                    <List
+                      itemLayout="horizontal"
+                      dataSource={stats.topProducts}
+                      renderItem={(item: any) => (
+                        <List.Item>
+                          <List.Item.Meta
+                            avatar={
+                              <Avatar 
+                                src={item.images?.[0]} 
+                                icon={<ProductOutlined />}
+                                shape="square"
+                              />
+                            }
+                            title={<Link to={`/products/${item._id}`}>{item.product_name}</Link>}
+                            description={`${item.sales} đã bán`}
+                          />
+                          <div className="font-medium">{item.salePrice} VND</div>
+                        </List.Item>
+                      )}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+            </Col>
+          </Row>
+
+          <Row gutter={[24, 24]} className="mt-6">
             <Col xs={24} lg={8}>
               <Card 
                 title="Phương thức thanh toán" 
                 loading={loading}
-                className="shadow-sm"
+                className="shadow-sm h-full"
+                extra={<Link to="/payments">Xem chi tiết</Link>}
               >
                 <List
                   itemLayout="horizontal"
@@ -585,7 +937,9 @@ const DashboardPage: React.FC = () => {
                       <List.Item.Meta
                         avatar={
                           <Avatar 
-                            style={{ backgroundColor: '#87d068' }}
+                            className={item.method === 'credit_card' ? 'bg-blue-100 text-blue-600' : 
+                                     item.method === 'paypal' ? 'bg-green-100 text-green-600' : 
+                                     'bg-orange-100 text-orange-600'}
                             icon={item.method === 'credit_card' ? <CreditCardOutlined /> : 
                                   item.method === 'paypal' ? <AlipayCircleOutlined /> : 
                                   <BankOutlined />}
@@ -599,7 +953,22 @@ const DashboardPage: React.FC = () => {
                             <span className="font-medium">{item.count} đơn</span>
                           </div>
                         }
-                        description={`Tổng: ${item.amount.toLocaleString()} VND`}
+                        description={
+                          <div className="flex justify-between items-center">
+                            <Text type="secondary">Tổng: {item.amount.toLocaleString()} VND</Text>
+                            <Progress 
+                              percent={Math.min(100, (item.amount / (stats.totalRevenue || 1)) * 100)} 
+                              size="small" 
+                              showInfo={false}
+                              strokeWidth={4}
+                              strokeColor={
+                                item.method === 'credit_card' ? '#1890ff' : 
+                                item.method === 'paypal' ? '#52c41a' : '#faad14'
+                              }
+                              style={{ width: 100 }}
+                            />
+                          </div>
+                        }
                       />
                     </List.Item>
                   )}
