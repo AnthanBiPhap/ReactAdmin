@@ -170,31 +170,10 @@ const OrdersPage: React.FC = () => {
       return
     }
 
-    if (!order.products || order.products.length === 0) {
-      message.error('Đơn hàng không có sản phẩm')
-      return
-    }
-
-    if (!order.shippingAddress || !order.shippingAddress.street) {
-      message.error('Đơn hàng không có địa chỉ giao hàng')
-      return
-    }
-
     setSelectedOrder(order)
-    fetchProducts()
-    setSelectedProducts(order.products.map(p => ({
-      productId: p.product._id,
-      name: p.product.product_name,
-      price: p.product.price,
-      salePrice: p.product.salePrice,
-      quantity: p.quantity
-    })))
     // Set form values from API response
     form.setFieldsValue({
       orderNumber: order.orderNumber,
-      shippingFee: order.shippingFee || 0,
-      tax: order.tax || 0,
-      discount: order.discount || 0,
       totalAmount: order.totalAmount,
       paymentMethod: order.paymentMethod,
       paymentStatus: order.paymentStatus as "pending" | "paid" | "failed",
@@ -275,45 +254,10 @@ const OrdersPage: React.FC = () => {
       setSaving(true)
       const values = await form.validateFields()
 
-      // Khi tạo mới đơn hàng, tạo mã đơn hàng tự động
-      if (!selectedOrder) {
-        const now = new Date()
-        const timestamp = now.getTime()
-        values.orderNumber = `ORD-${timestamp}`
-      }
-
-      const products = selectedProducts.map((p) => ({
-        productId: allProducts.find((prod) => prod.product_name === p.name || prod.name === p.name)?._id || '',
-        name: p.name,
-        price: p.price,
-        quantity: p.quantity,
-      }))
-
-      const shippingAddress = {
-        fullName: values["shippingAddress.fullName"],
-        addressLine1: values["shippingAddress.addressLine1"],
-        addressLine2: values["shippingAddress.addressLine2"],
-        city: values["shippingAddress.city"],
-        state: values["shippingAddress.state"],
-        postalCode: values["shippingAddress.postalCode"],
-        country: values["shippingAddress.country"],
-      }
-
       const payload = {
-        products: selectedProducts.map(p => ({
-          productId: p.productId,
-          name: p.name,
-          price: p.price,
-          quantity: p.quantity
-        })),
-        totalAmount: calculateTotalAmount(),
-        shippingFee: values.shippingFee,
-        tax: values.tax,
-        discount: values.discount,
         paymentMethod: values.paymentMethod,
         paymentStatus: values.paymentStatus as "pending" | "paid" | "failed",
-        status: values.status as "pending" | "processing" | "shipped" | "delivered" | "cancelled",
-        shippingAddress,
+        status: values.status as "pending" | "processing" | "shipped" | "delivered" | "cancelled"
       }
 
       if (selectedOrder) {
@@ -695,187 +639,74 @@ const OrdersPage: React.FC = () => {
           <Form.Item
             name="orderNumber"
             label="Mã Đơn Hàng"
-            rules={[
-              { required: true, message: "Mã đơn hàng không hợp lệ" },
-              { min: 1, message: "Mã đơn hàng phải có ít nhất 1 ký tự" },
-              { max: 50, message: "Mã đơn hàng không được vượt quá 50 ký tự" },
-            ]}
           >
             <Input 
               className="rounded-md"
-              disabled={selectedOrder !== null}
-              placeholder={selectedOrder ? selectedOrder.orderNumber : "Mã đơn hàng sẽ được tạo tự động"}
+              disabled
+              placeholder={selectedOrder ? selectedOrder.orderNumber : ""}
             />
           </Form.Item>
 
           <div className="border rounded-md p-4 bg-gray-50 mb-4">
-            <div className="font-medium text-lg mb-3">Sản Phẩm</div>
-            <Form.Item
-              name="products"
-              rules={[{ required: true, message: "Vui lòng thêm sản phẩm" }]}
-              className="mb-2"
-            >
-              <Select
-                mode="multiple"
-                placeholder="Chọn sản phẩm"
-                value={selectedProducts.map((p) => p.name || '')}
-                onChange={(selectedNames: string[]) => {
-                  const newSelected = selectedNames
-                    .map((name) => {
-                      const prod = allProducts.find((p: ProductApi) => p.name === name)
-                      return prod ? {
-                        productId: prod._id,
-                        name: prod.name || '',
-                        price: prod.salePrice || prod.price,
-                        quantity: 1,
-                      } : null
-                    })
-                    .filter(Boolean) as Product[]
-                  setSelectedProducts(newSelected)
-                  form.setFieldsValue({ totalAmount: calculateTotalAmount() })
-                }}
-                optionLabelProp="label"
-                className="rounded-md"
-                showSearch
-                filterOption={(input, option) =>
-                  (option?.label as string).toLowerCase().includes(input.toLowerCase())
-                }
-              >
-                {allProducts.map((p) => (
-                  <Option key={p._id} value={p.product_name || p.name}>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{p.product_name || p.name}</span>
-                      <span className="text-sm text-gray-500">#{p._id}</span>
-                      <span className="text-sm text-gray-600">{formatCurrency(p.salePrice || p.price)}</span>
-                    </div>
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-
-            {selectedProducts.length > 0 && (
-              <div className="mt-4 space-y-2">
-                {selectedProducts.map((p, idx) => (
-                  <div key={p.productId} className="flex items-center justify-between border-b pb-2">
-                    <div className="flex-1">
-                      <span className="font-medium">{p.name}</span>
-                      <div className="text-sm">
-                        {p.salePrice ? (
-                          <>
-                            <span className="text-gray-500 line-through mr-2">{formatCurrency(p.price)}</span>
-                            <span className="text-red-500">{formatCurrency(p.salePrice)}</span>
-                          </>
-                        ) : (
-                          <span className="text-gray-600">{formatCurrency(p.price)}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <span className="mr-2">Số lượng:</span>
-                      <InputNumber
-                        min={1}
-                        value={p.quantity}
-                        onChange={(val) => {
-                          const newArr = [...selectedProducts]
-                          newArr[idx].quantity = val || 1
-                          setSelectedProducts(newArr)
-                          form.setFieldsValue({ totalAmount: calculateTotalAmount() })
-                        }}
-                        className="w-20 rounded-md"
-                      />
-                    </div>
-                  </div>
-                ))}
-                <div className="pt-2 flex justify-between font-medium">
-                  <span>Tổng tiền sản phẩm:</span>
-                  <span className="text-blue-600">
-                    {formatCurrency(selectedProducts.reduce((acc, p) => acc + p.price * p.quantity, 0))}
-                  </span>
+            <div className="font-medium text-lg mb-3">Thông tin đơn hàng</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <div className="font-medium">Tổng tiền:</div>
+                <div className="text-lg font-bold text-blue-600">
+                  {selectedOrder ? formatCurrency(selectedOrder.totalAmount) : ''}
                 </div>
               </div>
-            )}
+              <div>
+                <div className="font-medium">Ngày tạo:</div>
+                <div>{selectedOrder ? formatDate(selectedOrder.createdAt) : ''}</div>
+              </div>
+            </div>
+            
+            <Divider orientation="left" className="mt-2">Sản phẩm</Divider>
+            <div className="space-y-3 mt-4">
+              {selectedOrder?.products?.map((item, index) => (
+                <div key={index} className="border-b pb-3 last:border-b-0">
+                  <div className="flex gap-4">
+                    <div className="w-16 h-16 bg-white border rounded-md overflow-hidden">
+                      {item.product?.images?.[0] ? (
+                        <img 
+                          src={item.product.images[0]} 
+                          alt={item.product.product_name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                          <ShoppingCartOutlined className="text-gray-400 text-xl" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium">{item.product?.product_name || 'Sản phẩm không xác định'}</div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span>Số lượng: {item.quantity}</span>
+                        <span>•</span>
+                        <span>
+                          {item.currentSalePrice ? (
+                            <>
+                              <span className="line-through mr-1">{formatCurrency(item.currentPrice)}</span>
+                              <span className="text-red-500">{formatCurrency(item.currentSalePrice)}</span>
+                            </>
+                          ) : (
+                            <span>{formatCurrency(item.currentPrice)}</span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="font-medium text-blue-600">
+                        Thành tiền: {formatCurrency((item.currentSalePrice || item.currentPrice) * item.quantity)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Form.Item
-              name="shippingFee"
-              label="Phí Vận Chuyển"
-              rules={[
-                { required: true, message: "Vui lòng nhập phí vận chuyển" },
-                { type: "number", min: 0, message: "Phí vận chuyển phải lớn hơn hoặc bằng 0" },
-              ]}
-            >
-              <InputNumber
-                className="w-full rounded-md"
-                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-                parser={(value) => value!.replace(/\$\s?|(,*)/g, "")}
-                onChange={() => form.setFieldsValue({ totalAmount: calculateTotalAmount() })}
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="tax"
-              label="Thuế"
-              rules={[
-                { required: true, message: "Vui lòng nhập thuế" },
-                { type: "number", min: 0, message: "Thuế phải lớn hơn hoặc bằng 0" },
-              ]}
-            >
-              <InputNumber
-                className="w-full rounded-md"
-                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-                parser={(value) => value!.replace(/\$\s?|(,*)/g, "")}
-                onChange={() => form.setFieldsValue({ totalAmount: calculateTotalAmount() })}
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="discount"
-              label="Giảm Giá"
-              rules={[
-                { required: true, message: "Vui lòng nhập giảm giá" },
-                { type: "number", min: 0, message: "Giảm giá phải lớn hơn hoặc bằng 0" },
-              ]}
-            >
-              <InputNumber
-                className="w-full rounded-md"
-                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-                parser={(value) => value!.replace(/\$\s?|(,*)/g, "")}
-                onChange={() => form.setFieldsValue({ totalAmount: calculateTotalAmount() })}
-              />
-            </Form.Item>
-          </div>
-
-          <Form.Item
-            name="totalAmount"
-            label="Tổng Tiền"
-            rules={[
-              { required: true, message: "Vui lòng nhập tổng tiền" },
-              { type: "number", min: 0, message: "Tổng tiền phải lớn hơn 0" },
-            ]}
-          >
-            <InputNumber
-              className="w-full rounded-md"
-              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-              parser={(value) => value!.replace(/\$\s?|(,*)/g, "")}
-              readOnly
-              style={{ color: "#1890ff", fontWeight: "bold" }}
-            />
-          </Form.Item>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Form.Item
-              name="paymentMethod"
-              label="Phương Thức Thanh Toán"
-              rules={[{ required: true, message: "Vui lòng chọn phương thức thanh toán" }]}
-            >
-              <Select className="rounded-md">
-                <Option value="credit_card">Thẻ Tín Dụng</Option>
-                <Option value="paypal">PayPal</Option>
-                <Option value="cod">COD</Option>
-              </Select>
-            </Form.Item>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Form.Item
               name="paymentStatus"
               label="Trạng Thái Thanh Toán"
@@ -904,70 +735,46 @@ const OrdersPage: React.FC = () => {
           </div>
 
           <Divider orientation="left">Thông tin người nhận</Divider>
+          
+          <div className="bg-gray-50 p-4 rounded-md">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="font-medium">Họ và tên:</div>
+                <div>{selectedOrder?.user?.fullName || ''}</div>
+              </div>
+              <div>
+                <div className="font-medium">Email:</div>
+                <div>{selectedOrder?.user?.email || ''}</div>
+              </div>
+              <div>
+                <div className="font-medium">Số điện thoại:</div>
+                <div>{selectedOrder?.user?.phone || ''}</div>
+              </div>
+            </div>
 
-          <Form.Item
-            name="user.fullName"
-            label="Họ và tên"
-          >
-            <Input placeholder="Họ và tên" className="rounded-md" />
-          </Form.Item>
-
-          <Form.Item
-            name="user.email"
-            label="Email"
-          >
-            <Input type="email" placeholder="Email" className="rounded-md" />
-          </Form.Item>
-
-          <Form.Item
-            name="user.phone"
-            label="Số điện thoại"
-          >
-            <Input placeholder="Số điện thoại" className="rounded-md" />
-          </Form.Item>
-
-          <Divider orientation="left">Địa Chỉ Giao Hàng</Divider>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Form.Item
-              name="user.fullName"
-              label="Người nhận"
-            >
-              <Input placeholder="Người nhận" className="rounded-md" />
-            </Form.Item>
-
-            <Form.Item
-              name="shippingAddress.country"
-              label="Quốc Gia"
-            >
-              <Select className="rounded-md">
-                <Option value="Vietnam">Việt Nam</Option>
-              </Select>
-            </Form.Item>
-          </div>
-
-          {/* <Form.Item
-            name="shippingAddress.addressLine1"
-            label="Địa Chỉ 1"
-          >
-            <TextArea rows={2} className="rounded-md" />
-          </Form.Item>
-
-          <Form.Item name="shippingAddress.addressLine2" label="Địa Chỉ 2">
-            <TextArea rows={2} className="rounded-md" />
-          </Form.Item> */}
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Form.Item
-              name="shippingAddress.city"
-              label="Thành Phố"
-            >
-              <Input className="rounded-md" />
-            </Form.Item>
-
-            <Form.Item name="shippingAddress.postalCode" label="Mã Bưu Chính">
-              <Input className="rounded-md" />
-            </Form.Item>
+            <Divider orientation="left" className="mt-4">Địa chỉ giao hàng</Divider>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="font-medium">Địa chỉ:</div>
+                <div>{selectedOrder?.shippingAddress?.street || ''}</div>
+              </div>
+              <div>
+                <div className="font-medium">Phường/Xã:</div>
+                <div>{selectedOrder?.shippingAddress?.ward || ''}</div>
+              </div>
+              <div>
+                <div className="font-medium">Quận/Huyện:</div>
+                <div>{selectedOrder?.shippingAddress?.district || ''}</div>
+              </div>
+              <div>
+                <div className="font-medium">Thành phố:</div>
+                <div>{selectedOrder?.shippingAddress?.city || ''}</div>
+              </div>
+              <div>
+                <div className="font-medium">Mã bưu chính:</div>
+                <div>{selectedOrder?.shippingAddress?.postalCode || ''}</div>
+              </div>
+            </div>
           </div>
         </Form>
       </Modal>
